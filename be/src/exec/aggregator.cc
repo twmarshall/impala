@@ -17,43 +17,26 @@
 
 #include "exec/aggregator.h"
 
-#include <math.h>
-#include <algorithm>
-#include <set>
 #include <sstream>
 
 #include "codegen/codegen-anyval.h"
 #include "codegen/llvm-codegen.h"
-#include "exec/hash-table.inline.h"
+#include "exec/exec-node.h"
 #include "exprs/agg-fn-evaluator.h"
-#include "exprs/anyval-util.h"
-#include "exprs/scalar-expr-evaluator.h"
+#include "exprs/expr-value.h"
 #include "exprs/scalar-expr.h"
-#include "exprs/slot-ref.h"
 #include "gutil/strings/substitute.h"
-#include "runtime/buffered-tuple-stream.inline.h"
 #include "runtime/descriptors.h"
-#include "runtime/exec-env.h"
 #include "runtime/mem-pool.h"
-#include "runtime/mem-tracker.h"
-#include "runtime/query-state.h"
 #include "runtime/raw-value.h"
-#include "runtime/row-batch.h"
 #include "runtime/runtime-state.h"
-#include "runtime/string-value.inline.h"
 #include "runtime/tuple-row.h"
 #include "runtime/tuple.h"
-#include "udf/udf-internal.h"
-#include "util/debug-util.h"
 #include "util/runtime-profile-counters.h"
 
-#include "gen-cpp/Exprs_types.h"
 #include "gen-cpp/PlanNodes_types.h"
 
 #include "common/names.h"
-
-using namespace impala;
-using namespace strings;
 
 namespace impala {
 
@@ -67,7 +50,7 @@ Aggregator::Aggregator(
     output_tuple_id_(tnode.agg_node.output_tuple_id),
     output_tuple_desc_(descs.GetTupleDescriptor(output_tuple_id_)),
     needs_finalize_(tnode.agg_node.need_finalize),
-    build_timer_(NULL) {
+    build_timer_(nullptr) {
   DCHECK_EQ(PARTITION_FANOUT, 1 << NUM_PARTITIONING_BITS);
   if (is_streaming_preagg_) {
     DCHECK(conjunct_evals_.empty()) << "Preaggs have no conjuncts";
@@ -165,7 +148,7 @@ void Aggregator::Codegen(RuntimeState* state) {
   if (IsNodeCodegenDisabled()) return;
 
   LlvmCodeGen* codegen = state->codegen();
-  DCHECK(codegen != NULL);
+  DCHECK(codegen != nullptr);
   TPrefetchMode::type prefetch_mode = state_->query_options().prefetch_mode;
   Status codegen_status = is_streaming_preagg_ ?
       CodegenProcessBatchStreaming(codegen, prefetch_mode) :
@@ -240,14 +223,14 @@ Status Aggregator::Open(RuntimeState* state) {
     TPrefetchMode::type prefetch_mode = state->query_options().prefetch_mode;
     SCOPED_TIMER(build_timer_);
     if (grouping_exprs_.empty()) {
-      if (process_batch_no_grouping_fn_ != NULL) {
+      if (process_batch_no_grouping_fn_ != nullptr) {
         RETURN_IF_ERROR(process_batch_no_grouping_fn_(this, &batch));
       } else {
         RETURN_IF_ERROR(ProcessBatchNoGrouping(&batch));
       }
     } else {
       // There is grouping, so we will do partitioned aggregation.
-      if (process_batch_fn_ != NULL) {
+      if (process_batch_fn_ != nullptr) {
         RETURN_IF_ERROR(process_batch_fn_(this, &batch, prefetch_mode, ht_ctx_.get()));
       } else {
         RETURN_IF_ERROR(ProcessBatch<false>(&batch, prefetch_mode, ht_ctx_.get()));
@@ -326,7 +309,7 @@ void Aggregator::Close(RuntimeState* state) {
 
   // Iterate through the remaining rows in the hash table and call Serialize/Finalize on
   // them in order to free any memory allocated by UDAs
-  if (output_partition_ != NULL) {
+  if (output_partition_ != nullptr) {
     CleanupHashTbl(output_partition_->agg_fn_evals, output_iterator_);
     output_partition_->Close(false);
   }
@@ -376,21 +359,21 @@ void Aggregator::InitAggSlots(
         && !agg_fn->intermediate_type().IsStringType()
         && !agg_fn->intermediate_type().IsTimestampType()) {
       ExprValue default_value;
-      void* default_value_ptr = NULL;
+      void* default_value_ptr = nullptr;
       if (agg_op == AggFn::MIN) {
         default_value_ptr = default_value.SetToMax((*slot_desc)->type());
       } else {
         DCHECK_EQ(agg_op, AggFn::MAX);
         default_value_ptr = default_value.SetToMin((*slot_desc)->type());
       }
-      RawValue::Write(default_value_ptr, intermediate_tuple, *slot_desc, NULL);
+      RawValue::Write(default_value_ptr, intermediate_tuple, *slot_desc, nullptr);
     }
   }
 }
 
 void Aggregator::UpdateTuple(
     AggFnEvaluator** agg_fn_evals, Tuple* tuple, TupleRow* row, bool is_merge) noexcept {
-  DCHECK(tuple != NULL || agg_fns_.empty());
+  DCHECK(tuple != nullptr || agg_fns_.empty());
   for (int i = 0; i < agg_fns_.size(); ++i) {
     if (is_merge) {
       agg_fn_evals[i]->Merge(row->GetTuple(0), tuple);
@@ -402,7 +385,7 @@ void Aggregator::UpdateTuple(
 
 Tuple* Aggregator::GetOutputTuple(
     const vector<AggFnEvaluator*>& agg_fn_evals, Tuple* tuple, MemPool* pool) {
-  DCHECK(tuple != NULL || agg_fn_evals.empty()) << tuple;
+  DCHECK(tuple != nullptr || agg_fn_evals.empty()) << tuple;
   Tuple* dst = tuple;
   if (needs_finalize_ && intermediate_tuple_id_ != output_tuple_id_) {
     dst = Tuple::Create(output_tuple_desc_->byte_size(), pool);
@@ -420,9 +403,9 @@ Tuple* Aggregator::GetOutputTuple(
       SlotDescriptor* src_slot_desc = intermediate_tuple_desc_->slots()[i];
       SlotDescriptor* dst_slot_desc = output_tuple_desc_->slots()[i];
       bool src_slot_null = tuple->IsNull(src_slot_desc->null_indicator_offset());
-      void* src_slot = NULL;
+      void* src_slot = nullptr;
       if (!src_slot_null) src_slot = tuple->GetSlot(src_slot_desc->tuple_offset());
-      RawValue::Write(src_slot, dst, dst_slot_desc, NULL);
+      RawValue::Write(src_slot, dst, dst_slot_desc, nullptr);
     }
   }
   return dst;
@@ -534,7 +517,7 @@ Status Aggregator::CodegenUpdateSlot(LlvmCodeGen* codegen, int agg_fn_idx,
     SlotDescriptor* slot_desc, llvm::Function** fn) {
   llvm::PointerType* agg_fn_eval_type = codegen->GetStructPtrType<AggFnEvaluator>();
   llvm::StructType* tuple_struct = intermediate_tuple_desc_->GetLlvmStruct(codegen);
-  if (tuple_struct == NULL) {
+  if (tuple_struct == nullptr) {
     return Status("Aggregator::CodegenUpdateSlot(): failed to generate "
                   "intermediate tuple desc");
   }
@@ -566,7 +549,7 @@ Status Aggregator::CodegenUpdateSlot(LlvmCodeGen* codegen, int agg_fn_idx,
     ScalarExpr* input_expr = agg_fn->GetChild(i);
     llvm::Function* input_expr_fn;
     RETURN_IF_ERROR(input_expr->GetCodegendComputeFn(codegen, &input_expr_fn));
-    DCHECK(input_expr_fn != NULL);
+    DCHECK(input_expr_fn != nullptr);
 
     // Call input expr function with the matching evaluator to get src slot value.
     llvm::Value* input_eval =
@@ -593,7 +576,7 @@ Status Aggregator::CodegenUpdateSlot(LlvmCodeGen* codegen, int agg_fn_idx,
 
   // 'dst_slot_ptr' points to the slot in the aggregate tuple to update.
   llvm::Value* dst_slot_ptr = builder.CreateStructGEP(
-      NULL, agg_tuple_arg, slot_desc->llvm_field_idx(), "dst_slot_ptr");
+      nullptr, agg_tuple_arg, slot_desc->llvm_field_idx(), "dst_slot_ptr");
   // TODO: consider moving the following codegen logic to AggFn.
   if (agg_op == AggFn::COUNT) {
     src.CodegenBranchIfNull(&builder, ret_block);
@@ -657,7 +640,7 @@ Status Aggregator::CodegenUpdateSlot(LlvmCodeGen* codegen, int agg_fn_idx,
     // Get the FunctionContext object for the AggFnEvaluator.
     llvm::Function* get_agg_fn_ctx_fn =
         codegen->GetFunction(IRFunction::AGG_FN_EVALUATOR_AGG_FN_CTX, false);
-    DCHECK(get_agg_fn_ctx_fn != NULL);
+    DCHECK(get_agg_fn_ctx_fn != nullptr);
     llvm::Value* agg_fn_ctx_val =
         builder.CreateCall(get_agg_fn_ctx_fn, {agg_fn_eval_arg}, "agg_fn_ctx");
 
@@ -693,7 +676,7 @@ Status Aggregator::CodegenUpdateSlot(LlvmCodeGen* codegen, int agg_fn_idx,
   }
 
   *fn = codegen->FinalizeFunction(*fn);
-  if (*fn == NULL) {
+  if (*fn == nullptr) {
     return Status("Aggregator::CodegenUpdateSlot(): codegen'd "
                   "UpdateSlot() function failed verification, see log");
   }
@@ -778,7 +761,7 @@ Status Aggregator::CodegenUpdateTuple(LlvmCodeGen* codegen, llvm::Function** fn)
     }
   }
 
-  if (intermediate_tuple_desc_->GetLlvmStruct(codegen) == NULL) {
+  if (intermediate_tuple_desc_->GetLlvmStruct(codegen) == nullptr) {
     return Status::Expected("Aggregator::CodegenUpdateTuple(): failed to"
                             " generate intermediate tuple desc");
   }
@@ -821,7 +804,7 @@ Status Aggregator::CodegenUpdateTuple(LlvmCodeGen* codegen, llvm::Function** fn)
       int field_idx = slot_desc->llvm_field_idx();
       llvm::Value* const_one = codegen->GetI64Constant(1);
       llvm::Value* slot_ptr =
-          builder.CreateStructGEP(NULL, tuple_arg, field_idx, "src_slot");
+          builder.CreateStructGEP(nullptr, tuple_arg, field_idx, "src_slot");
       llvm::Value* slot_loaded = builder.CreateLoad(slot_ptr, "count_star_val");
       llvm::Value* count_inc =
           builder.CreateAdd(slot_loaded, const_one, "count_star_inc");
@@ -849,10 +832,10 @@ Status Aggregator::CodegenUpdateTuple(LlvmCodeGen* codegen, llvm::Function** fn)
 
   // CodegenProcessBatch() does the final optimizations.
   *fn = codegen->FinalizeFunction(*fn);
-  if (*fn == NULL) {
+  if (*fn == nullptr) {
     return Status("Aggregator::CodegenUpdateTuple(): codegen'd "
                   "UpdateTuple() function failed verification, see log");
   }
   return Status::OK();
 }
-}
+} // namespace impala

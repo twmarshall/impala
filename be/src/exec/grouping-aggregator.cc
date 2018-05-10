@@ -17,17 +17,12 @@
 
 #include "exec/grouping-aggregator.h"
 
-#include <math.h>
-#include <algorithm>
-#include <set>
 #include <sstream>
 
-#include "codegen/codegen-anyval.h"
 #include "codegen/llvm-codegen.h"
+#include "exec/exec-node.h"
 #include "exec/hash-table.inline.h"
 #include "exprs/agg-fn-evaluator.h"
-#include "exprs/anyval-util.h"
-#include "exprs/scalar-expr-evaluator.h"
 #include "exprs/scalar-expr.h"
 #include "exprs/slot-ref.h"
 #include "gutil/strings/substitute.h"
@@ -36,24 +31,15 @@
 #include "runtime/exec-env.h"
 #include "runtime/mem-pool.h"
 #include "runtime/mem-tracker.h"
-#include "runtime/query-state.h"
-#include "runtime/raw-value.h"
 #include "runtime/row-batch.h"
 #include "runtime/runtime-state.h"
-#include "runtime/string-value.inline.h"
 #include "runtime/tuple-row.h"
 #include "runtime/tuple.h"
-#include "udf/udf-internal.h"
-#include "util/debug-util.h"
 #include "util/runtime-profile-counters.h"
 
-#include "gen-cpp/Exprs_types.h"
 #include "gen-cpp/PlanNodes_types.h"
 
 #include "common/names.h"
-
-using namespace impala;
-using namespace strings;
 
 namespace impala {
 
@@ -104,22 +90,22 @@ GroupingAggregator::GroupingAggregator(
     intermediate_row_desc_(intermediate_tuple_desc_, false),
     is_streaming_preagg_(tnode.agg_node.use_streaming_preaggregation),
     needs_serialize_(false),
-    output_partition_(NULL),
-    process_batch_fn_(NULL),
-    process_batch_streaming_fn_(NULL),
-    ht_resize_timer_(NULL),
-    get_results_timer_(NULL),
-    num_hash_buckets_(NULL),
-    partitions_created_(NULL),
-    max_partition_level_(NULL),
-    num_row_repartitioned_(NULL),
-    num_repartitions_(NULL),
-    num_spilled_partitions_(NULL),
-    largest_partition_percent_(NULL),
-    streaming_timer_(NULL),
-    num_passthrough_rows_(NULL),
-    preagg_estimated_reduction_(NULL),
-    preagg_streaming_ht_min_reduction_(NULL),
+    output_partition_(nullptr),
+    process_batch_fn_(nullptr),
+    process_batch_streaming_fn_(nullptr),
+    ht_resize_timer_(nullptr),
+    get_results_timer_(nullptr),
+    num_hash_buckets_(nullptr),
+    partitions_created_(nullptr),
+    max_partition_level_(nullptr),
+    num_row_repartitioned_(nullptr),
+    num_repartitions_(nullptr),
+    num_spilled_partitions_(nullptr),
+    largest_partition_percent_(nullptr),
+    streaming_timer_(nullptr),
+    num_passthrough_rows_(nullptr),
+    preagg_estimated_reduction_(nullptr),
+    preagg_streaming_ht_min_reduction_(nullptr),
     estimated_input_cardinality_(tnode.agg_node.estimated_input_cardinality),
     partition_eos_(false),
     partition_pool_(new ObjectPool()) {
@@ -220,7 +206,7 @@ void GroupingAggregator::Codegen(RuntimeState* state) {
   if (IsNodeCodegenDisabled()) return;
 
   LlvmCodeGen* codegen = state->codegen();
-  DCHECK(codegen != NULL);
+  DCHECK(codegen != nullptr);
   TPrefetchMode::type prefetch_mode = state_->query_options().prefetch_mode;
   Status codegen_status = is_streaming_preagg_ ?
       CodegenProcessBatchStreaming(codegen, prefetch_mode) :
@@ -295,14 +281,14 @@ Status GroupingAggregator::Open(RuntimeState* state) {
     TPrefetchMode::type prefetch_mode = state->query_options().prefetch_mode;
     SCOPED_TIMER(build_timer_);
     if (grouping_exprs_.empty()) {
-      if (process_batch_no_grouping_fn_ != NULL) {
+      if (process_batch_no_grouping_fn_ != nullptr) {
         RETURN_IF_ERROR(process_batch_no_grouping_fn_(this, &batch));
       } else {
         RETURN_IF_ERROR(ProcessBatchNoGrouping(&batch));
       }
     } else {
       // There is grouping, so we will do partitioned aggregation.
-      if (process_batch_fn_ != NULL) {
+      if (process_batch_fn_ != nullptr) {
         RETURN_IF_ERROR(process_batch_fn_(this, &batch, prefetch_mode, ht_ctx_.get()));
       } else {
         RETURN_IF_ERROR(ProcessBatch<false>(&batch, prefetch_mode, ht_ctx_.get()));
@@ -365,9 +351,9 @@ Status GroupingAggregator::GetRowsFromPartition(
   DCHECK(!row_batch->AtCapacity());
   if (output_iterator_.AtEnd()) {
     // Done with this partition, move onto the next one.
-    if (output_partition_ != NULL) {
+    if (output_partition_ != nullptr) {
       output_partition_->Close(false);
-      output_partition_ = NULL;
+      output_partition_ = nullptr;
     }
     if (aggregated_partitions_.empty() && spilled_partitions_.empty()) {
       // No more partitions, all done.
@@ -376,7 +362,7 @@ Status GroupingAggregator::GetRowsFromPartition(
     }
     // Process next partition.
     RETURN_IF_ERROR(NextPartition());
-    DCHECK(output_partition_ != NULL);
+    DCHECK(output_partition_ != nullptr);
   }
 
   SCOPED_TIMER(get_results_timer_);
@@ -476,7 +462,7 @@ void GroupingAggregator::CleanupHashTbl(
   if (needs_finalize_) {
     // Finalize() requires a dst tuple but we don't actually need the result,
     // so allocate a single dummy tuple to avoid accumulating memory.
-    Tuple* dummy_dst = NULL;
+    Tuple* dummy_dst = nullptr;
     dummy_dst =
         Tuple::Create(output_tuple_desc_->byte_size(), singleton_tuple_pool_.get());
     while (!it.AtEnd()) {
@@ -518,7 +504,7 @@ void GroupingAggregator::Close(RuntimeState* state) {
 
   // Iterate through the remaining rows in the hash table and call Serialize/Finalize on
   // them in order to free any memory allocated by UDAs
-  if (output_partition_ != NULL) {
+  if (output_partition_ != nullptr) {
     CleanupHashTbl(output_partition_->agg_fn_evals, output_iterator_);
     output_partition_->Close(false);
   }
@@ -548,12 +534,12 @@ Tuple* GroupingAggregator::ConstructIntermediateTuple(
   const int varlen_size = GroupingExprsVarlenSize();
   const int tuple_data_size = fixed_size + varlen_size;
   uint8_t* tuple_data = pool->TryAllocate(tuple_data_size);
-  if (UNLIKELY(tuple_data == NULL)) {
+  if (UNLIKELY(tuple_data == nullptr)) {
     string details = Substitute("Cannot perform aggregation at node with id $0. Failed "
                                 "to allocate $1 bytes for intermediate tuple.",
         id_, tuple_data_size);
     *status = pool->mem_tracker()->MemLimitExceeded(state_, details, tuple_data_size);
-    return NULL;
+    return nullptr;
   }
   memset(tuple_data, 0, fixed_size);
   Tuple* intermediate_tuple = reinterpret_cast<Tuple*>(tuple_data);
@@ -566,7 +552,7 @@ Tuple* GroupingAggregator::ConstructIntermediateTuple(
 Tuple* GroupingAggregator::ConstructIntermediateTuple(
     const vector<AggFnEvaluator*>& agg_fn_evals, BufferedTupleStream* stream,
     Status* status) noexcept {
-  DCHECK(stream != NULL && status != NULL);
+  DCHECK(stream != nullptr && status != nullptr);
   // Allocate space for the entire tuple in the stream.
   const int fixed_size = intermediate_tuple_desc_->byte_size();
   const int varlen_size = GroupingExprsVarlenSize();
@@ -907,7 +893,7 @@ Status GroupingAggregator::ProcessStream(BufferedTupleStream* input_stream) {
       batch.Reset();
     } while (!eos);
   }
-  input_stream->Close(NULL, RowBatch::FlushMode::NO_FLUSH_RESOURCES);
+  input_stream->Close(nullptr, RowBatch::FlushMode::NO_FLUSH_RESOURCES);
   return Status::OK();
 }
 
@@ -1020,7 +1006,7 @@ Status GroupingAggregator::CodegenProcessBatch(
       (!grouping_exprs_.empty() ? IRFunction::PART_AGG_NODE_PROCESS_BATCH_UNAGGREGATED :
                                   IRFunction::PART_AGG_NODE_PROCESS_BATCH_NO_GROUPING);
   llvm::Function* process_batch_fn = codegen->GetFunction(ir_fn, true);
-  DCHECK(process_batch_fn != NULL);
+  DCHECK(process_batch_fn != nullptr);
 
   int replaced;
   if (!grouping_exprs_.empty()) {
@@ -1068,7 +1054,7 @@ Status GroupingAggregator::CodegenProcessBatch(
   replaced = codegen->ReplaceCallSites(process_batch_fn, update_tuple_fn, "UpdateTuple");
   DCHECK_GE(replaced, 1);
   process_batch_fn = codegen->FinalizeFunction(process_batch_fn);
-  if (process_batch_fn == NULL) {
+  if (process_batch_fn == nullptr) {
     return Status("GroupingAggregator::CodegenProcessBatch(): codegen'd "
                   "ProcessBatch() function failed verification, see log");
   }
@@ -1086,7 +1072,7 @@ Status GroupingAggregator::CodegenProcessBatchStreaming(
 
   IRFunction::Type ir_fn = IRFunction::PART_AGG_NODE_PROCESS_BATCH_STREAMING;
   llvm::Function* process_batch_streaming_fn = codegen->GetFunction(ir_fn, true);
-  DCHECK(process_batch_streaming_fn != NULL);
+  DCHECK(process_batch_streaming_fn != nullptr);
 
   // Make needs_serialize arg constant so dead code can be optimised out.
   llvm::Value* needs_serialize_arg = codegen->GetArgument(process_batch_streaming_fn, 2);
@@ -1136,9 +1122,9 @@ Status GroupingAggregator::CodegenProcessBatchStreaming(
   DCHECK_GE(replaced_constants.stores_tuples, 1);
   DCHECK_GE(replaced_constants.quadratic_probing, 1);
 
-  DCHECK(process_batch_streaming_fn != NULL);
+  DCHECK(process_batch_streaming_fn != nullptr);
   process_batch_streaming_fn = codegen->FinalizeFunction(process_batch_streaming_fn);
-  if (process_batch_streaming_fn == NULL) {
+  if (process_batch_streaming_fn == nullptr) {
     return Status("GroupingAggregator::CodegenProcessBatchStreaming(): codegen'd "
                   "ProcessBatchStreaming() function failed verification, see log");
   }

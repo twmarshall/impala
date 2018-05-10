@@ -18,20 +18,15 @@
 #ifndef IMPALA_EXEC_AGGREGATOR_H
 #define IMPALA_EXEC_AGGREGATOR_H
 
-#include <deque>
+#include <vector>
 
-#include <boost/scoped_ptr.hpp>
-
-#include "exec/exec-node.h"
-#include "exec/hash-table.h"
-#include "runtime/buffered-tuple-stream.h"
-#include "runtime/bufferpool/suballocator.h"
-#include "runtime/descriptors.h" // for TupleId
-#include "runtime/mem-pool.h"
-#include "runtime/string-value.h"
+#include "common/global-types.h"
+#include "common/status.h"
+#include "gen-cpp/Types_types.h"
+#include "runtime/mem-tracker.h"
+#include "util/runtime-profile.h"
 
 namespace llvm {
-class BasicBlock;
 class Function;
 class Value;
 } // namespace llvm
@@ -41,25 +36,32 @@ namespace impala {
 class AggFn;
 class AggFnEvaluator;
 class CodegenAnyVal;
-class LlvmCodeGen;
+class DescriptorTbl;
+class ExecNode;
 class LlvmBuilder;
+class LlvmCodeGen;
+class MemPool;
+class ObjectPool;
 class RowBatch;
+class RowDescriptor;
 class RuntimeState;
-struct StringValue;
+class SlotDescriptor;
+class TPlanNode;
 class Tuple;
 class TupleDescriptor;
-class SlotDescriptor;
+class TupleRow;
 
 class Aggregator {
  public:
   Aggregator(ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
 
-  virtual Status Init(const TPlanNode& tnode, RuntimeState* state);
-  virtual Status Prepare(RuntimeState* state);
+  virtual Status Init(const TPlanNode& tnode, RuntimeState* state) WARN_UNUSED_RESULT;
+  virtual Status Prepare(RuntimeState* state) WARN_UNUSED_RESULT;
   virtual void Codegen(RuntimeState* state);
-  virtual Status Open(RuntimeState* state);
-  virtual Status GetNext(RuntimeState* state, RowBatch* row_batch, bool* eos);
-  virtual Status Reset(RuntimeState* state);
+  virtual Status Open(RuntimeState* state) WARN_UNUSED_RESULT;
+  virtual Status GetNext(
+      RuntimeState* state, RowBatch* row_batch, bool* eos) WARN_UNUSED_RESULT;
+  virtual Status Reset(RuntimeState* state) WARN_UNUSED_RESULT;
   virtual void Close(RuntimeState* state);
 
   static const char* LLVM_CLASS_NAME;
@@ -148,4 +150,4 @@ class Aggregator {
 };
 } // namespace impala
 
-#endif
+#endif // IMPALA_EXEC_AGGREGATOR_H

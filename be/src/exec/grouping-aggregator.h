@@ -19,36 +19,23 @@
 #define IMPALA_EXEC_GROUPING_AGGREGATOR_H
 
 #include <deque>
+#include <memory>
+#include <vector>
 
-#include <boost/scoped_ptr.hpp>
-
-#include "exec/exec-node.h"
+#include "exec/aggregator.h"
 #include "exec/hash-table.h"
 #include "runtime/buffered-tuple-stream.h"
 #include "runtime/bufferpool/suballocator.h"
-#include "runtime/descriptors.h" // for TupleId
+#include "runtime/descriptors.h"
 #include "runtime/mem-pool.h"
-#include "runtime/string-value.h"
-
-namespace llvm {
-class BasicBlock;
-class Function;
-class Value;
-} // namespace llvm
 
 namespace impala {
 
-class AggFn;
 class AggFnEvaluator;
-class CodegenAnyVal;
 class LlvmCodeGen;
-class LlvmBuilder;
 class RowBatch;
 class RuntimeState;
-struct StringValue;
 class Tuple;
-class TupleDescriptor;
-class SlotDescriptor;
 
 /// Node for doing partitioned hash aggregation.
 /// This node consumes the input (which can be from the child(0) or a spilled partition).
@@ -132,15 +119,15 @@ class GroupingAggregator : public Aggregator {
   GroupingAggregator(
       ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
 
-  virtual Status Init(const TPlanNode& tnode, RuntimeState* state);
-  virtual Status Prepare(RuntimeState* state);
-  virtual void Codegen(RuntimeState* state);
-  virtual Status Open(RuntimeState* state);
-  virtual Status GetNext(RuntimeState* state, RowBatch* row_batch, bool* eos);
-  virtual Status Reset(RuntimeState* state);
-  virtual void Close(RuntimeState* state);
+  virtual Status Init(const TPlanNode& tnode, RuntimeState* state) override;
+  virtual Status Prepare(RuntimeState* state) override;
+  virtual void Codegen(RuntimeState* state) override;
+  virtual Status Open(RuntimeState* state) override;
+  virtual Status GetNext(RuntimeState* state, RowBatch* row_batch, bool* eos) override;
+  virtual Status Reset(RuntimeState* state) override;
+  virtual void Close(RuntimeState* state) override;
 
-  virtual void DebugString(int indentation_level, std::stringstream* out) const;
+  virtual void DebugString(int indentation_level, std::stringstream* out) const override;
 
  private:
   struct Partition;
@@ -203,14 +190,14 @@ class GroupingAggregator : public Aggregator {
   RuntimeState* state_;
 
   /// Allocator for hash table memory.
-  boost::scoped_ptr<Suballocator> ht_allocator_;
+  std::unique_ptr<Suballocator> ht_allocator_;
 
   /// MemPool used to allocate memory for when we don't have grouping and don't initialize
   /// the partitioning structures, or during Close() when creating new output tuples.
   /// For non-grouping aggregations, the ownership of the pool's memory is transferred
   /// to the output batch on eos. The pool should not be Reset() to allow amortizing
   /// memory allocation over a series of Reset()/Open()/GetNext()* calls.
-  boost::scoped_ptr<MemPool> singleton_tuple_pool_;
+  std::unique_ptr<MemPool> singleton_tuple_pool_;
 
   /// The current partition and iterator to the next row in its hash table that we need
   /// to return in GetNext()
@@ -282,7 +269,7 @@ class GroupingAggregator : public Aggregator {
   boost::scoped_ptr<HashTableCtx> ht_ctx_;
 
   /// Object pool that holds the Partition objects in hash_partitions_.
-  boost::scoped_ptr<ObjectPool> partition_pool_;
+  std::unique_ptr<ObjectPool> partition_pool_;
 
   /// Current partitions we are partitioning into. IMPALA-5788: For the case where we
   /// rebuild a spilled partition that fits in memory, all pointers in this vector will
@@ -342,7 +329,7 @@ class GroupingAggregator : public Aggregator {
     /// if 'more_aggregate_rows' is true or the unaggregated stream otherwise.
     Status Spill(bool more_aggregate_rows) WARN_UNUSED_RESULT;
 
-    bool is_spilled() const { return hash_tbl.get() == NULL; }
+    bool is_spilled() const { return hash_tbl.get() == nullptr; }
 
     GroupingAggregator* parent;
 
@@ -360,7 +347,7 @@ class GroupingAggregator : public Aggregator {
     /// Hash table for this partition.
     /// Can be NULL if this partition is no longer maintaining a hash table (i.e.
     /// is spilled or we are passing through all rows for this partition).
-    boost::scoped_ptr<HashTable> hash_tbl;
+    std::unique_ptr<HashTable> hash_tbl;
 
     /// Clone of parent's agg_fn_evals_. Permanent allocations come from
     /// 'agg_fn_perm_pool' and result allocations come from the ExecNode's
@@ -370,7 +357,7 @@ class GroupingAggregator : public Aggregator {
     /// Pool for permanent allocations for this partition's 'agg_fn_evals'. Freed at the
     /// same times as 'agg_fn_evals' are closed: either when the partition is closed or
     /// when it is spilled.
-    boost::scoped_ptr<MemPool> agg_fn_perm_pool;
+    std::unique_ptr<MemPool> agg_fn_perm_pool;
 
     /// Tuple stream used to store aggregated rows. When the partition is not spilled,
     /// (meaning the hash table is maintained), this stream is pinned and contains the
@@ -380,18 +367,18 @@ class GroupingAggregator : public Aggregator {
     /// For streaming preaggs, this may be NULL if sufficient memory is not available.
     /// In that case hash_tbl is also NULL and all rows for the partition will be passed
     /// through.
-    boost::scoped_ptr<BufferedTupleStream> aggregated_row_stream;
+    std::unique_ptr<BufferedTupleStream> aggregated_row_stream;
 
     /// Unaggregated rows that are spilled. Always NULL for streaming pre-aggregations.
     /// Always unpinned. Has a write buffer allocated when the partition is spilled and
     /// unaggregated rows are being processed.
-    boost::scoped_ptr<BufferedTupleStream> unaggregated_row_stream;
+    std::unique_ptr<BufferedTupleStream> unaggregated_row_stream;
   };
 
   /// Stream used to store serialized spilled rows. Only used if needs_serialize_
   /// is set. This stream is never pinned and only used in Partition::Spill as a
   /// a temporary buffer.
-  boost::scoped_ptr<BufferedTupleStream> serialize_stream_;
+  std::unique_ptr<BufferedTupleStream> serialize_stream_;
 
   /// Accessor for 'hash_tbls_' that verifies consistency with the partitions.
   HashTable* ALWAYS_INLINE GetHashTable(int partition_idx) {
@@ -616,4 +603,4 @@ class GroupingAggregator : public Aggregator {
 };
 } // namespace impala
 
-#endif
+#endif // IMPALA_EXEC_GROUPING_AGGREGATOR_H

@@ -18,52 +18,29 @@
 #ifndef IMPALA_EXEC_STREAMING_AGGREGATION_NODE_H
 #define IMPALA_EXEC_STREAMING_AGGREGATION_NODE_H
 
-#include <deque>
-
-#include <boost/scoped_ptr.hpp>
+#include <memory>
 
 #include "exec/exec-node.h"
-#include "exec/hash-table.h"
-#include "runtime/buffered-tuple-stream.h"
-#include "runtime/bufferpool/suballocator.h"
-#include "runtime/descriptors.h" // for TupleId
-#include "runtime/mem-pool.h"
-#include "runtime/string-value.h"
-
-namespace llvm {
-class BasicBlock;
-class Function;
-class Value;
-} // namespace llvm
 
 namespace impala {
 
-class AggFn;
-class AggFnEvaluator;
-class CodegenAnyVal;
-class LlvmCodeGen;
-class LlvmBuilder;
 class RowBatch;
 class RuntimeState;
-struct StringValue;
-class Tuple;
-class TupleDescriptor;
-class SlotDescriptor;
 
 class StreamingAggregationNode : public ExecNode {
  public:
   StreamingAggregationNode(
       ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
 
-  virtual Status Init(const TPlanNode& tnode, RuntimeState* state);
-  virtual Status Prepare(RuntimeState* state);
-  virtual void Codegen(RuntimeState* state);
-  virtual Status Open(RuntimeState* state);
-  virtual Status GetNext(RuntimeState* state, RowBatch* row_batch, bool* eos);
-  virtual Status Reset(RuntimeState* state);
-  virtual void Close(RuntimeState* state);
+  virtual Status Init(const TPlanNode& tnode, RuntimeState* state) override;
+  virtual Status Prepare(RuntimeState* state) override;
+  virtual void Codegen(RuntimeState* state) override;
+  virtual Status Open(RuntimeState* state) override;
+  virtual Status GetNext(RuntimeState* state, RowBatch* row_batch, bool* eos) override;
+  virtual Status Reset(RuntimeState* state) override;
+  virtual void Close(RuntimeState* state) override;
 
-  virtual void DebugString(int indentation_level, std::stringstream* out) const;
+  virtual void DebugString(int indentation_level, std::stringstream* out) const override;
 
  private:
   /////////////////////////////////////////
@@ -71,7 +48,7 @@ class StreamingAggregationNode : public ExecNode {
 
   /// Row batch used as argument to GetNext() for the child node preaggregations. Store
   /// in node to avoid reallocating for every GetNext() call when streaming.
-  boost::scoped_ptr<RowBatch> child_batch_;
+  std::unique_ptr<RowBatch> child_batch_;
 
   /// True if no more rows to process from child.
   bool child_eos_;
@@ -86,4 +63,4 @@ class StreamingAggregationNode : public ExecNode {
 };
 } // namespace impala
 
-#endif
+#endif // IMPALA_EXEC_STREAMING_AGGREGATION_NODE_H

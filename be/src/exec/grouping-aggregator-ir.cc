@@ -19,9 +19,6 @@
 
 #include "exec/hash-table.inline.h"
 #include "exprs/agg-fn-evaluator.h"
-#include "exprs/scalar-expr-evaluator.h"
-#include "exprs/scalar-expr.h"
-#include "runtime/buffered-tuple-stream.inline.h"
 #include "runtime/row-batch.h"
 #include "runtime/tuple-row.h"
 
@@ -78,7 +75,7 @@ void IR_ALWAYS_INLINE GroupingAggregator::EvalAndHashPrefetchGroup(RowBatch* bat
     if (is_null) {
       expr_vals_cache->SetRowNull();
     } else if (prefetch_mode != TPrefetchMode::NONE) {
-      if (LIKELY(hash_tbl != NULL)) hash_tbl->PrefetchBucket<false>(hash);
+      if (LIKELY(hash_tbl != nullptr)) hash_tbl->PrefetchBucket<false>(hash);
     }
     expr_vals_cache->NextRow();
   }
@@ -101,8 +98,8 @@ Status GroupingAggregator::ProcessRow(
   HashTable* hash_tbl = GetHashTable(partition_idx);
   Partition* dst_partition = hash_partitions_[partition_idx];
   DCHECK(dst_partition != nullptr);
-  DCHECK_EQ(dst_partition->is_spilled(), hash_tbl == NULL);
-  if (hash_tbl == NULL) {
+  DCHECK_EQ(dst_partition->is_spilled(), hash_tbl == nullptr);
+  if (hash_tbl == nullptr) {
     // This partition is already spilled, just append the row.
     return AppendSpilledRow<AGGREGATED_ROWS>(dst_partition, row);
   }
@@ -137,7 +134,7 @@ Status GroupingAggregator::AddIntermediateTuple(Partition* __restrict__ partitio
     Tuple* intermediate_tuple = ConstructIntermediateTuple(partition->agg_fn_evals,
         partition->aggregated_row_stream.get(), &process_batch_status_);
 
-    if (LIKELY(intermediate_tuple != NULL)) {
+    if (LIKELY(intermediate_tuple != nullptr)) {
       UpdateTuple(
           partition->agg_fn_evals.data(), intermediate_tuple, row, AGGREGATED_ROWS);
       // After copying and initializing the tuple, insert it into the hash table.
@@ -182,7 +179,7 @@ Status GroupingAggregator::ProcessBatchStreaming(bool needs_serialize,
         // Tuple is not going into hash table, add it to the output batch.
         Tuple* intermediate_tuple = ConstructIntermediateTuple(
             agg_fn_evals_, out_batch->tuple_data_pool(), &process_batch_status_);
-        if (UNLIKELY(intermediate_tuple == NULL)) {
+        if (UNLIKELY(intermediate_tuple == nullptr)) {
           DCHECK(!process_batch_status_.ok());
           return std::move(process_batch_status_);
         }
@@ -209,7 +206,7 @@ bool GroupingAggregator::TryAddToHashTable(HashTableCtx* __restrict__ ht_ctx,
     Partition* __restrict__ partition, HashTable* __restrict__ hash_tbl,
     TupleRow* __restrict__ in_row, uint32_t hash, int* __restrict__ remaining_capacity,
     Status* status) {
-  DCHECK(remaining_capacity != NULL);
+  DCHECK(remaining_capacity != nullptr);
   DCHECK_EQ(hash_tbl, partition->hash_tbl.get());
   DCHECK_GE(*remaining_capacity, 0);
   bool found;
@@ -223,7 +220,7 @@ bool GroupingAggregator::TryAddToHashTable(HashTableCtx* __restrict__ ht_ctx,
   } else {
     intermediate_tuple = ConstructIntermediateTuple(
         partition->agg_fn_evals, partition->aggregated_row_stream.get(), status);
-    if (LIKELY(intermediate_tuple != NULL)) {
+    if (LIKELY(intermediate_tuple != nullptr)) {
       it.SetTuple(intermediate_tuple, hash);
       --(*remaining_capacity);
     } else {

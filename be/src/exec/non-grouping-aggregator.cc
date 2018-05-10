@@ -17,51 +17,29 @@
 
 #include "exec/non-grouping-aggregator.h"
 
-#include <math.h>
-#include <algorithm>
-#include <set>
 #include <sstream>
 
-#include "codegen/codegen-anyval.h"
 #include "codegen/llvm-codegen.h"
-#include "exec/hash-table.inline.h"
+#include "exec/exec-node.h"
 #include "exprs/agg-fn-evaluator.h"
-#include "exprs/anyval-util.h"
-#include "exprs/scalar-expr-evaluator.h"
-#include "exprs/scalar-expr.h"
-#include "exprs/slot-ref.h"
 #include "gutil/strings/substitute.h"
-#include "runtime/buffered-tuple-stream.inline.h"
 #include "runtime/descriptors.h"
-#include "runtime/exec-env.h"
 #include "runtime/mem-pool.h"
-#include "runtime/mem-tracker.h"
-#include "runtime/query-state.h"
-#include "runtime/raw-value.h"
 #include "runtime/row-batch.h"
 #include "runtime/runtime-state.h"
-#include "runtime/string-value.inline.h"
 #include "runtime/tuple-row.h"
 #include "runtime/tuple.h"
-#include "udf/udf-internal.h"
-#include "util/debug-util.h"
 #include "util/runtime-profile-counters.h"
 
-#include "gen-cpp/Exprs_types.h"
-#include "gen-cpp/PlanNodes_types.h"
-
 #include "common/names.h"
-
-using namespace impala;
-using namespace strings;
 
 namespace impala {
 
 NonGroupingAggregator::NonGroupingAggregator(
     ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs)
   : ExecNode(pool, tnode, descs),
-    process_batch_no_grouping_fn_(NULL),
-    singleton_output_tuple_(NULL),
+    process_batch_no_grouping_fn_(nullptr),
+    singleton_output_tuple_(nullptr),
     singleton_output_tuple_returned_(true) {
   DCHECK_EQ(PARTITION_FANOUT, 1 << NUM_PARTITIONING_BITS);
   if (is_streaming_preagg_) {
@@ -160,7 +138,7 @@ void NonGroupingAggregator::Codegen(RuntimeState* state) {
   if (IsNodeCodegenDisabled()) return;
 
   LlvmCodeGen* codegen = state->codegen();
-  DCHECK(codegen != NULL);
+  DCHECK(codegen != nullptr);
   TPrefetchMode::type prefetch_mode = state_->query_options().prefetch_mode;
   Status codegen_status = is_streaming_preagg_ ?
       CodegenProcessBatchStreaming(codegen, prefetch_mode) :
@@ -235,14 +213,14 @@ Status NonGroupingAggregator::Open(RuntimeState* state) {
     TPrefetchMode::type prefetch_mode = state->query_options().prefetch_mode;
     SCOPED_TIMER(build_timer_);
     if (grouping_exprs_.empty()) {
-      if (process_batch_no_grouping_fn_ != NULL) {
+      if (process_batch_no_grouping_fn_ != nullptr) {
         RETURN_IF_ERROR(process_batch_no_grouping_fn_(this, &batch));
       } else {
         RETURN_IF_ERROR(ProcessBatchNoGrouping(&batch));
       }
     } else {
       // There is grouping, so we will do partitioned aggregation.
-      if (process_batch_fn_ != NULL) {
+      if (process_batch_fn_ != nullptr) {
         RETURN_IF_ERROR(process_batch_fn_(this, &batch, prefetch_mode, ht_ctx_.get()));
       } else {
         RETURN_IF_ERROR(ProcessBatch<false>(&batch, prefetch_mode, ht_ctx_.get()));
@@ -322,7 +300,7 @@ void NonGroupingAggregator::GetSingletonOutput(RowBatch* row_batch) {
   // of Reset()/Open()/GetNext()* calls.
   row_batch->tuple_data_pool()->AcquireData(singleton_tuple_pool_.get(), true);
   // This node no longer owns the memory for singleton_output_tuple_.
-  singleton_output_tuple_ = NULL;
+  singleton_output_tuple_ = nullptr;
 }
 
 Status NonGroupingAggregator::Reset(RuntimeState* state) {
@@ -346,7 +324,7 @@ void NonGroupingAggregator::Close(RuntimeState* state) {
 
   // Iterate through the remaining rows in the hash table and call Serialize/Finalize on
   // them in order to free any memory allocated by UDAs
-  if (output_partition_ != NULL) {
+  if (output_partition_ != nullptr) {
     CleanupHashTbl(output_partition_->agg_fn_evals, output_iterator_);
     output_partition_->Close(false);
   }
@@ -405,7 +383,7 @@ Status NonGroupingAggregator::CodegenProcessBatch(
       (!grouping_exprs_.empty() ? IRFunction::PART_AGG_NODE_PROCESS_BATCH_UNAGGREGATED :
                                   IRFunction::PART_AGG_NODE_PROCESS_BATCH_NO_GROUPING);
   llvm::Function* process_batch_fn = codegen->GetFunction(ir_fn, true);
-  DCHECK(process_batch_fn != NULL);
+  DCHECK(process_batch_fn != nullptr);
 
   int replaced;
   if (!grouping_exprs_.empty()) {
@@ -453,7 +431,7 @@ Status NonGroupingAggregator::CodegenProcessBatch(
   replaced = codegen->ReplaceCallSites(process_batch_fn, update_tuple_fn, "UpdateTuple");
   DCHECK_GE(replaced, 1);
   process_batch_fn = codegen->FinalizeFunction(process_batch_fn);
-  if (process_batch_fn == NULL) {
+  if (process_batch_fn == nullptr) {
     return Status("NonGroupingAggregator::CodegenProcessBatch(): codegen'd "
                   "ProcessBatch() function failed verification, see log");
   }
@@ -464,4 +442,4 @@ Status NonGroupingAggregator::CodegenProcessBatch(
   codegen->AddFunctionToJit(process_batch_fn, codegened_fn_ptr);
   return Status::OK();
 }
-}
+} // namespace impala

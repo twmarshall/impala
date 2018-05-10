@@ -18,52 +18,38 @@
 #ifndef IMPALA_EXEC_NON_GROUPING_AGGREGATOR_H
 #define IMPALA_EXEC_NON_GROUPING_AGGREGATOR_H
 
-#include <deque>
+#include <memory>
+#include <vector>
 
-#include <boost/scoped_ptr.hpp>
-
-#include "exec/exec-node.h"
-#include "exec/hash-table.h"
-#include "runtime/buffered-tuple-stream.h"
-#include "runtime/bufferpool/suballocator.h"
-#include "runtime/descriptors.h" // for TupleId
+#include "exec/aggregator.h"
 #include "runtime/mem-pool.h"
-#include "runtime/string-value.h"
-
-namespace llvm {
-class BasicBlock;
-class Function;
-class Value;
-} // namespace llvm
 
 namespace impala {
 
-class AggFn;
 class AggFnEvaluator;
-class CodegenAnyVal;
+class DescriptorTbl;
+class ExecNode;
 class LlvmCodeGen;
-class LlvmBuilder;
+class ObjectPool;
 class RowBatch;
 class RuntimeState;
-struct StringValue;
+class TPlanNode;
 class Tuple;
-class TupleDescriptor;
-class SlotDescriptor;
 
 class NonGroupingAggregator : public Aggregator {
  public:
   NonGroupingAggregator(
       ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
 
-  virtual Status Init(const TPlanNode& tnode, RuntimeState* state);
-  virtual Status Prepare(RuntimeState* state);
-  virtual void Codegen(RuntimeState* state);
-  virtual Status Open(RuntimeState* state);
-  virtual Status GetNext(RuntimeState* state, RowBatch* row_batch, bool* eos);
-  virtual Status Reset(RuntimeState* state);
-  virtual void Close(RuntimeState* state);
+  virtual Status Init(const TPlanNode& tnode, RuntimeState* state) override;
+  virtual Status Prepare(RuntimeState* state) override;
+  virtual void Codegen(RuntimeState* state) override;
+  virtual Status Open(RuntimeState* state) override;
+  virtual Status GetNext(RuntimeState* state, RowBatch* row_batch, bool* eos) override;
+  virtual Status Reset(RuntimeState* state) override;
+  virtual void Close(RuntimeState* state) override;
 
-  virtual void DebugString(int indentation_level, std::stringstream* out) const;
+  virtual void DebugString(int indentation_level, std::stringstream* out) const override;
 
  private:
   /// MemPool used to allocate memory for when we don't have grouping and don't initialize
@@ -71,7 +57,7 @@ class NonGroupingAggregator : public Aggregator {
   /// For non-grouping aggregations, the ownership of the pool's memory is transferred
   /// to the output batch on eos. The pool should not be Reset() to allow amortizing
   /// memory allocation over a series of Reset()/Open()/GetNext()* calls.
-  boost::scoped_ptr<MemPool> singleton_tuple_pool_;
+  std::unique_ptr<MemPool> singleton_tuple_pool_;
 
   typedef Status (*ProcessBatchNoGroupingFn)(NonGroupingAggregator*, RowBatch*);
   /// Jitted ProcessBatchNoGrouping function pointer. Null if codegen is disabled.
@@ -112,4 +98,4 @@ class NonGroupingAggregator : public Aggregator {
 };
 } // namespace impala
 
-#endif
+#endif // IMPALA_EXEC_NON_GROUPING_AGGREGATOR_H

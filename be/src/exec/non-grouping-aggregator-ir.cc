@@ -17,13 +17,7 @@
 
 #include "exec/non-grouping-aggregator.h"
 
-#include "exec/hash-table.inline.h"
-#include "exprs/agg-fn-evaluator.h"
-#include "exprs/scalar-expr-evaluator.h"
-#include "exprs/scalar-expr.h"
-#include "runtime/buffered-tuple-stream.inline.h"
 #include "runtime/row-batch.h"
-#include "runtime/tuple-row.h"
 
 using namespace impala;
 
