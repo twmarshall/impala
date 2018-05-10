@@ -120,6 +120,9 @@ DEFINE_bool(load_auth_to_local_rules, false, "If true, load auth_to_local config
     "hadoop.security.auth_to_local and applies them to translate the Kerberos principal "
     "to its corresponding local user name for authorization.");
 
+DEFINE_bool(use_legacy_aggregation, false, "(Advanced) If true, fall back to using the "
+    "legacy aggregation node.");
+
 // Stress options that are only enabled in debug builds for testing.
 #ifndef NDEBUG
 DEFINE_int32(stress_fn_ctx_alloc, 0, "A stress option which causes memory allocations "

@@ -49,6 +49,9 @@ class AggregationNode : public ExecNode {
   /////////////////////////////////////////
   /// BEGIN: Members that must be Reset()
 
+  /// Performs the actual work of aggregating input rows.
+  std::unique_ptr<Aggregator> aggregator_;
+
   /// END: Members that must be Reset()
   /////////////////////////////////////////
 };

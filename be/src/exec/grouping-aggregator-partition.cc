@@ -38,10 +38,10 @@ GroupingAggregator::Partition::~Partition() {
 }
 
 Status GroupingAggregator::Partition::InitStreams() {
-  agg_fn_perm_pool.reset(new MemPool(parent->expr_mem_tracker()));
+  agg_fn_perm_pool.reset(new MemPool(parent->expr_mem_tracker_.get()));
   DCHECK_EQ(agg_fn_evals.size(), 0);
   AggFnEvaluator::ShallowClone(parent->partition_pool_.get(), agg_fn_perm_pool.get(),
-      parent->expr_results_pool(), parent->agg_fn_evals_, &agg_fn_evals);
+      parent->expr_results_pool_.get(), parent->agg_fn_evals_, &agg_fn_evals);
   // Varlen aggregate function results are stored outside of aggregated_row_stream because
   // BufferedTupleStream doesn't support relocating varlen data stored in the stream.
   auto agg_slot =
@@ -57,7 +57,7 @@ Status GroupingAggregator::Partition::InitStreams() {
       new BufferedTupleStream(parent->state_, &parent->intermediate_row_desc_,
           parent->buffer_pool_client(), parent->resource_profile_.spillable_buffer_size,
           parent->resource_profile_.max_row_buffer_size, external_varlen_slots));
-  RETURN_IF_ERROR(aggregated_row_stream->Init(parent->id(), true));
+  RETURN_IF_ERROR(aggregated_row_stream->Init(parent->id_, true));
   bool got_buffer;
   RETURN_IF_ERROR(aggregated_row_stream->PrepareForWrite(&got_buffer));
   DCHECK(got_buffer) << "Buffer included in reservation " << parent->id_ << "\n"
@@ -65,11 +65,11 @@ Status GroupingAggregator::Partition::InitStreams() {
                      << parent->DebugString(2);
   if (!parent->is_streaming_preagg_) {
     unaggregated_row_stream.reset(
-        new BufferedTupleStream(parent->state_, parent->child(0)->row_desc(),
+        new BufferedTupleStream(parent->state_, &parent->input_row_desc_,
             parent->buffer_pool_client(), parent->resource_profile_.spillable_buffer_size,
             parent->resource_profile_.max_row_buffer_size));
     // This stream is only used to spill, no need to ever have this pinned.
-    RETURN_IF_ERROR(unaggregated_row_stream->Init(parent->id(), false));
+    RETURN_IF_ERROR(unaggregated_row_stream->Init(parent->id_, false));
     // Save memory by waiting until we spill to allocate the write buffer for the
     // unaggregated row stream.
     DCHECK(!unaggregated_row_stream->has_write_iterator());
@@ -139,7 +139,7 @@ Status GroupingAggregator::Partition::SerializeStreamForSpilling() {
         new BufferedTupleStream(parent->state_, &parent->intermediate_row_desc_,
             parent->buffer_pool_client(), parent->resource_profile_.spillable_buffer_size,
             parent->resource_profile_.max_row_buffer_size));
-    status = parent->serialize_stream_->Init(parent->id(), false);
+    status = parent->serialize_stream_->Init(parent->id_, false);
     if (status.ok()) {
       bool got_buffer;
       status = parent->serialize_stream_->PrepareForWrite(&got_buffer);
@@ -159,7 +159,7 @@ Status GroupingAggregator::Partition::Spill(bool more_aggregate_rows) {
   DCHECK(!parent->is_streaming_preagg_);
   DCHECK(!is_closed);
   DCHECK(!is_spilled());
-  RETURN_IF_ERROR(parent->state_->StartSpilling(parent->mem_tracker()));
+  RETURN_IF_ERROR(parent->state_->StartSpilling(parent->mem_tracker_.get()));
 
   RETURN_IF_ERROR(SerializeStreamForSpilling());
 

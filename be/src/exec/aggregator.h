@@ -57,24 +57,55 @@ class TupleRow;
 /// be called and the results can be fetched with GetNext().
 class Aggregator {
  public:
-  Aggregator(ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
+  Aggregator(ExecNode* exec_node, ObjectPool* pool, const TPlanNode& tnode,
+      const DescriptorTbl& descs, const std::string& name);
 
   virtual Status Init(const TPlanNode& tnode, RuntimeState* state) WARN_UNUSED_RESULT;
   virtual Status Prepare(RuntimeState* state) WARN_UNUSED_RESULT;
-  virtual void Codegen(RuntimeState* state);
+  virtual void Codegen(RuntimeState* state) = 0;
   virtual Status Open(RuntimeState* state) WARN_UNUSED_RESULT;
   virtual Status GetNext(
-      RuntimeState* state, RowBatch* row_batch, bool* eos) WARN_UNUSED_RESULT;
-  virtual Status Reset(RuntimeState* state) WARN_UNUSED_RESULT;
+      RuntimeState* state, RowBatch* row_batch, bool* eos) WARN_UNUSED_RESULT = 0;
+  virtual Status Reset(RuntimeState* state) WARN_UNUSED_RESULT = 0;
   virtual void Close(RuntimeState* state);
+
+  /// Adds all of the rows in 'batch' to the aggregation.
+  virtual Status AddBatch(RuntimeState* state, RowBatch* batch) = 0;
+  /// Indicates that all batches have been added. Must be called before GetNext().
+  virtual Status InputDone() = 0;
+
+  virtual int num_grouping_exprs() = 0;
+  RuntimeProfile* runtime_profile() { return runtime_profile_; }
+
+  virtual void SetDebugOptions(const TDebugOptions& debug_options) = 0;
+
+  virtual std::string DebugString(int indentation_level = 0) const = 0;
+  virtual void DebugString(int indentation_level, std::stringstream* out) const = 0;
 
   static const char* LLVM_CLASS_NAME;
 
  protected:
-  virtual std::string DebugString(int indentation_level) const;
-  virtual void DebugString(int indentation_level, std::stringstream* out) const;
+  /// The id of the ExecNode this Aggregator corresponds to.
+  int id_;
+  ObjectPool* pool_;
 
- private:
+  /// Account for peak memory used by this aggregator.
+  std::unique_ptr<MemTracker> mem_tracker_;
+
+  /// MemTracker used by 'expr_perm_pool_' and 'expr_results_pool_'.
+  std::unique_ptr<MemTracker> expr_mem_tracker_;
+
+  /// MemPool for allocations made by expression evaluators in this aggregator that are
+  /// "permanent" and live until Close() is called. Created in Prepare().
+  std::unique_ptr<MemPool> expr_perm_pool_;
+
+  /// MemPool for allocations made by expression evaluators in this aggregator that hold
+  /// intermediate or final results of expression evaluation. Should be cleared
+  /// periodically to free accumulated memory. QueryMaintenance() clears this pool, but
+  /// it may be appropriate for Aggregator implementation to clear it at other points in
+  /// execution where the memory is not needed.
+  std::unique_ptr<MemPool> expr_results_pool_;
+
   /// Tuple into which Update()/Merge()/Serialize() results are stored.
   TupleId intermediate_tuple_id_;
   TupleDescriptor* intermediate_tuple_desc_;
@@ -83,6 +114,11 @@ class Aggregator {
   /// the intermediate tuple.
   TupleId output_tuple_id_;
   TupleDescriptor* output_tuple_desc_;
+
+  /// The RowDescriptor for the exec node this aggregator corresponds to.
+  const RowDescriptor& row_desc_;
+  /// The RowDescriptor for the child of the exec node this aggregator corresponds to.
+  const RowDescriptor& input_row_desc_;
 
   /// Certain aggregates require a finalize step, which is the final step of the
   /// aggregate after consuming all input rows. The finalize step converts the aggregate
@@ -101,6 +137,18 @@ class Aggregator {
   /// Permanent and result allocations for these allocators are allocated from
   /// 'expr_perm_pool_' and 'expr_results_pool_' respectively.
   std::vector<AggFnEvaluator*> agg_fn_evals_;
+
+  /// Conjuncts and their evaluators in this aggregator. 'conjuncts_' live in the
+  /// query-state's object pool while the evaluators live in this aggregator's
+  /// object pool.
+  std::vector<ScalarExpr*> conjuncts_;
+  std::vector<ScalarExprEvaluator*> conjunct_evals_;
+
+  /// Runtime profile for this aggregator. Owned by 'pool_'.
+  RuntimeProfile* const runtime_profile_;
+
+  int64_t num_rows_returned_;
+  RuntimeProfile::Counter* rows_returned_counter_;
 
   /// Time spent processing the child rows
   RuntimeProfile::Counter* build_timer_;

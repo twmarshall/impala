@@ -28,6 +28,7 @@
 #include "runtime/bufferpool/suballocator.h"
 #include "runtime/descriptors.h"
 #include "runtime/mem-pool.h"
+#include "runtime/reservation-manager.h"
 
 namespace impala {
 
@@ -112,8 +113,8 @@ class Tuple;
 /// TODO: support an Init() method with an initial value in the UDAF interface.
 class GroupingAggregator : public Aggregator {
  public:
-  GroupingAggregator(
-      ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
+  GroupingAggregator(ExecNode* exec_node, ObjectPool* pool, const TPlanNode& tnode,
+      const DescriptorTbl& descs);
 
   virtual Status Init(const TPlanNode& tnode, RuntimeState* state) override;
   virtual Status Prepare(RuntimeState* state) override;
@@ -123,6 +124,19 @@ class GroupingAggregator : public Aggregator {
   virtual Status Reset(RuntimeState* state) override;
   virtual void Close(RuntimeState* state) override;
 
+  virtual Status AddBatch(RuntimeState* state, RowBatch* batch) override;
+  /// Used to insert input rows if this is a streaming pre-agg. Tries to aggregate all of
+  /// the rows of 'child_batch', but if there isn't enough memory available rows will be
+  /// streamed through and returned in 'out_batch'.
+  Status AddBatchStreaming(
+      RuntimeState* state, RowBatch* out_batch, RowBatch* child_batch);
+  virtual Status InputDone() override WARN_UNUSED_RESULT;
+
+  virtual int num_grouping_exprs() override { return grouping_exprs_.size(); }
+
+  virtual void SetDebugOptions(const TDebugOptions& debug_options) override;
+
+  virtual std::string DebugString(int indentation_level = 0) const override;
   virtual void DebugString(int indentation_level, std::stringstream* out) const override;
 
  private:
@@ -188,17 +202,30 @@ class GroupingAggregator : public Aggregator {
   /// Allocator for hash table memory.
   std::unique_ptr<Suballocator> ht_allocator_;
 
-  /// MemPool used to allocate memory for when we don't have grouping and don't initialize
-  /// the partitioning structures, or during Close() when creating new output tuples.
-  /// For non-grouping aggregations, the ownership of the pool's memory is transferred
-  /// to the output batch on eos. The pool should not be Reset() to allow amortizing
-  /// memory allocation over a series of Reset()/Open()/GetNext()* calls.
-  std::unique_ptr<MemPool> singleton_tuple_pool_;
+  /// MemPool used to allocate memory during Close() when creating new output tuples. The
+  /// pool should not be Reset() to allow amortizing memory allocation over a series of
+  /// Reset()/Open()/GetNext()* calls.
+  std::unique_ptr<MemPool> tuple_pool_;
 
   /// The current partition and iterator to the next row in its hash table that we need
   /// to return in GetNext()
   Partition* output_partition_;
   HashTable::Iterator output_iterator_;
+
+  /// Resource information sent from the frontend.
+  const TBackendResourceProfile resource_profile_;
+
+  ReservationManager reservation_manager_;
+  BufferPool::ClientHandle* buffer_pool_client();
+
+  /// The number of rows that have been passed to AddBatch() or AddBatchStreaming().
+  int64_t num_input_rows_;
+
+  /// True if this aggregator is being executed in a subplan.
+  const bool is_in_subplan_;
+
+  int64_t limit_; // -1: no limit
+  bool ReachedLimit() { return limit_ != -1 && num_rows_returned_ >= limit_; }
 
   typedef Status (*ProcessBatchFn)(
       GroupingAggregator*, RowBatch*, TPrefetchMode::type, HashTableCtx*);
@@ -252,6 +279,8 @@ class GroupingAggregator : public Aggregator {
 
   /// The estimated number of input rows from the planner.
   int64_t estimated_input_cardinality_;
+
+  TDebugOptions debug_options_;
 
   /////////////////////////////////////////
   /// BEGIN: Members that must be Reset()
@@ -557,6 +586,12 @@ class GroupingAggregator : public Aggregator {
   void CleanupHashTbl(
       const std::vector<AggFnEvaluator*>& agg_fn_evals, HashTable::Iterator it);
 
+  /// Clears 'expr_results_pool_' and returns the result of state->CheckQueryState().
+  /// Aggregators should call this periodically, e.g. once per input row batch. This
+  /// should not be called outside the main execution thread.
+  /// TODO: IMPALA-2399: replace QueryMaintenance() - see JIRA for more details.
+  Status QueryMaintenance(RuntimeState* state) WARN_UNUSED_RESULT;
+
   /// Codegen the non-streaming process row batch loop. The loop has already been
   /// compiled to IR and loaded into the codegen object. UpdateAggTuple has also been
   /// codegen'd to IR. This function will modify the loop subsituting the statically
@@ -582,18 +617,7 @@ class GroupingAggregator : public Aggregator {
   /// If we need to serialize, we need an additional buffer while spilling a partition
   /// as the partitions aggregate stream needs to be serialized and rewritten.
   /// We do not spill streaming preaggregations, so we do not need to reserve any buffers.
-  int64_t MinReservation() const {
-    DCHECK(!grouping_exprs_.empty());
-    // Must be kept in sync with AggregationNode.computeNodeResourceProfile() in fe.
-    if (is_streaming_preagg_) {
-      // Reserve at least one buffer and a 64kb hash table per partition.
-      return (resource_profile_.spillable_buffer_size + 64 * 1024) * PARTITION_FANOUT;
-    }
-    int num_buffers = PARTITION_FANOUT + 1 + (needs_serialize_ ? 1 : 0);
-    // Two of the buffers must fit the maximum row.
-    return resource_profile_.spillable_buffer_size * (num_buffers - 2)
-        + resource_profile_.max_row_buffer_size * 2;
-  }
+  int64_t MinReservation() const;
 };
 } // namespace impala
 

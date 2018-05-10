@@ -36,27 +36,38 @@ class RuntimeState;
 class TPlanNode;
 class Tuple;
 
+/// Aggregator for doing non-grouping aggregations. Input is passed to the aggregator
+/// through AddBatch(), which generates the single output row. This Aggregator does
+/// not support streaming preaggregation.
 class NonGroupingAggregator : public Aggregator {
  public:
-  NonGroupingAggregator(
-      ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
+  NonGroupingAggregator(ExecNode* exec_node, ObjectPool* pool, const TPlanNode& tnode,
+      const DescriptorTbl& descs);
 
-  virtual Status Init(const TPlanNode& tnode, RuntimeState* state) override;
   virtual Status Prepare(RuntimeState* state) override;
   virtual void Codegen(RuntimeState* state) override;
   virtual Status Open(RuntimeState* state) override;
   virtual Status GetNext(RuntimeState* state, RowBatch* row_batch, bool* eos) override;
-  virtual Status Reset(RuntimeState* state) override;
+  virtual Status Reset(RuntimeState* state) override { return Status::OK(); }
   virtual void Close(RuntimeState* state) override;
 
+  virtual Status AddBatch(RuntimeState* state, RowBatch* batch) override;
+  virtual Status InputDone() override { return Status::OK(); }
+
+  virtual int num_grouping_exprs() override { return 0; }
+
+  /// NonGroupingAggregator doesn't create a buffer pool client so it doesn't need the
+  /// debug options.
+  virtual void SetDebugOptions(const TDebugOptions& debug_options) override {}
+
+  virtual std::string DebugString(int indentation_level = 0) const override;
   virtual void DebugString(int indentation_level, std::stringstream* out) const override;
 
  private:
-  /// MemPool used to allocate memory for when we don't have grouping and don't initialize
-  /// the partitioning structures, or during Close() when creating new output tuples.
-  /// For non-grouping aggregations, the ownership of the pool's memory is transferred
-  /// to the output batch on eos. The pool should not be Reset() to allow amortizing
-  /// memory allocation over a series of Reset()/Open()/GetNext()* calls.
+  /// MemPool used to allocate memory for 'singleton_output_tuple_'. The ownership of the
+  /// pool's memory is transferred to the output batch on eos. The pool should not be
+  /// Reset() to allow amortizing memory allocation over a series of
+  /// Reset()/Open()/GetNext()* calls.
   std::unique_ptr<MemPool> singleton_tuple_pool_;
 
   typedef Status (*ProcessBatchNoGroupingFn)(NonGroupingAggregator*, RowBatch*);

@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "exec/exec-node.h"
+#include "exec/grouping-aggregator.h"
 
 namespace impala {
 
@@ -56,6 +57,8 @@ class StreamingAggregationNode : public ExecNode {
 
   /// True if no more rows to process from child.
   bool child_eos_;
+
+  std::unique_ptr<GroupingAggregator> aggregator_;
 
   /// END: Members that must be Reset()
   /////////////////////////////////////////
