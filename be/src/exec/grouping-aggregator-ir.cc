@@ -27,14 +27,6 @@
 
 using namespace impala;
 
-Status GroupingAggregator::ProcessBatchNoGrouping(RowBatch* batch) {
-  Tuple* output_tuple = singleton_output_tuple_;
-  FOREACH_ROW(batch, 0, batch_iter) {
-    UpdateTuple(agg_fn_evals_.data(), output_tuple, batch_iter.Get());
-  }
-  return Status::OK();
-}
-
 template <bool AGGREGATED_ROWS>
 Status GroupingAggregator::ProcessBatch(RowBatch* batch,
     TPrefetchMode::type prefetch_mode, HashTableCtx* __restrict__ ht_ctx) {

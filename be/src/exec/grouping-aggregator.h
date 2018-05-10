@@ -140,10 +140,6 @@ class GroupingAggregator : public Aggregator {
   virtual Status Reset(RuntimeState* state);
   virtual void Close(RuntimeState* state);
 
-  static const char* LLVM_CLASS_NAME;
-
- protected:
-  virtual std::string DebugString(int indentation_level) const;
   virtual void DebugString(int indentation_level, std::stringstream* out) const;
 
  private:
@@ -178,10 +174,6 @@ class GroupingAggregator : public Aggregator {
   /// TODO: fix IMPALA-1948 and remove this.
   Status process_batch_status_;
 
-  /// Tuple into which Update()/Merge()/Serialize() results are stored.
-  TupleId intermediate_tuple_id_;
-  TupleDescriptor* intermediate_tuple_desc_;
-
   /// Row with the intermediate tuple as its only tuple.
   /// Construct a new row desc for preparing the build exprs because neither the child's
   /// nor this node's output row desc may contain the intermediate tuple, e.g.,
@@ -189,35 +181,12 @@ class GroupingAggregator : public Aggregator {
   /// Lives in the query state's obj_pool.
   RowDescriptor intermediate_row_desc_;
 
-  /// Tuple into which Finalize() results are stored. Possibly the same as
-  /// the intermediate tuple.
-  TupleId output_tuple_id_;
-  TupleDescriptor* output_tuple_desc_;
-
-  /// Certain aggregates require a finalize step, which is the final step of the
-  /// aggregate after consuming all input rows. The finalize step converts the aggregate
-  /// value into its final form. This is true if this node contains aggregate that
-  /// requires a finalize step.
-  const bool needs_finalize_;
-
   /// True if this is first phase of a two-phase distributed aggregation for which we
   /// are doing a streaming preaggregation.
   const bool is_streaming_preagg_;
 
   /// True if any of the evaluators require the serialize step.
   bool needs_serialize_;
-
-  /// The list of all aggregate operations for this exec node.
-  std::vector<AggFn*> agg_fns_;
-
-  /// Evaluators for each aggregate function. If this is a grouping aggregation, these
-  /// evaluators are only used to create cloned per-partition evaluators. The cloned
-  /// evaluators are then used to evaluate the functions. If this is a non-grouping
-  /// aggregation these evaluators are used directly to evaluate the functions.
-  ///
-  /// Permanent and result allocations for these allocators are allocated from
-  /// 'expr_perm_pool_' and 'expr_results_pool_' respectively.
-  std::vector<AggFnEvaluator*> agg_fn_evals_;
 
   /// Exprs used to evaluate input rows
   std::vector<ScalarExpr*> grouping_exprs_;
@@ -248,10 +217,6 @@ class GroupingAggregator : public Aggregator {
   Partition* output_partition_;
   HashTable::Iterator output_iterator_;
 
-  typedef Status (*ProcessBatchNoGroupingFn)(GroupingAggregator*, RowBatch*);
-  /// Jitted ProcessBatchNoGrouping function pointer. Null if codegen is disabled.
-  ProcessBatchNoGroupingFn process_batch_no_grouping_fn_;
-
   typedef Status (*ProcessBatchFn)(
       GroupingAggregator*, RowBatch*, TPrefetchMode::type, HashTableCtx*);
   /// Jitted ProcessBatch function pointer. Null if codegen is disabled.
@@ -261,9 +226,6 @@ class GroupingAggregator : public Aggregator {
       TPrefetchMode::type, RowBatch*, RowBatch*, HashTableCtx*, int[PARTITION_FANOUT]);
   /// Jitted ProcessBatchStreaming function pointer.  Null if codegen is disabled.
   ProcessBatchStreamingFn process_batch_streaming_fn_;
-
-  /// Time spent processing the child rows
-  RuntimeProfile::Counter* build_timer_;
 
   /// Total time spent resizing hash tables.
   RuntimeProfile::Counter* ht_resize_timer_;
@@ -311,21 +273,8 @@ class GroupingAggregator : public Aggregator {
   /////////////////////////////////////////
   /// BEGIN: Members that must be Reset()
 
-  /// Result of aggregation w/o GROUP BY.
-  /// Note: can be NULL even if there is no grouping if the result tuple is 0 width
-  /// e.g. select 1 from table group by col.
-  Tuple* singleton_output_tuple_;
-  bool singleton_output_tuple_returned_;
-
-  /// Row batch used as argument to GetNext() for the child node preaggregations. Store
-  /// in node to avoid reallocating for every GetNext() call when streaming.
-  boost::scoped_ptr<RowBatch> child_batch_;
-
   /// If true, no more rows to output from partitions.
   bool partition_eos_;
-
-  /// True if no more rows to process from child.
-  bool child_eos_;
 
   /// Used for hash-related functionality, such as evaluating rows and calculating hashes.
   /// It also owns the evaluators for the grouping and build expressions used during hash
@@ -451,10 +400,6 @@ class GroupingAggregator : public Aggregator {
     return ht;
   }
 
-  /// Constructs singleton output tuple, allocating memory from pool.
-  Tuple* ConstructSingletonOutputTuple(
-      const std::vector<AggFnEvaluator*>& agg_fn_evals, MemPool* pool);
-
   /// Copies grouping values stored in 'ht_ctx_' that were computed over 'current_row_'
   /// using 'grouping_expr_evals_'. Aggregation expr slots are set to their initial
   /// values. Returns NULL if there was not enough memory to allocate the tuple or errors
@@ -479,39 +424,6 @@ class GroupingAggregator : public Aggregator {
   /// var-len data into buffer. 'buffer' points to the start of a buffer of at least the
   /// size of the variable-length data: 'varlen_size'.
   void CopyGroupingValues(Tuple* intermediate_tuple, uint8_t* buffer, int varlen_size);
-
-  /// Initializes the aggregate function slots of an intermediate tuple.
-  /// Any var-len data is allocated from the FunctionContexts.
-  void InitAggSlots(
-      const std::vector<AggFnEvaluator*>& agg_fn_evals, Tuple* intermediate_tuple);
-
-  /// Updates the given aggregation intermediate tuple with aggregation values computed
-  /// over 'row' using 'agg_fn_evals'. Whether the agg fn evaluator calls Update() or
-  /// Merge() is controlled by the evaluator itself, unless enforced explicitly by passing
-  /// in is_merge == true.  The override is needed to merge spilled and non-spilled rows
-  /// belonging to the same partition independent of whether the agg fn evaluators have
-  /// is_merge() == true.
-  /// This function is replaced by codegen (which is why we don't use a vector argument
-  /// for agg_fn_evals).. Any var-len data is allocated from the FunctionContexts.
-  /// TODO: Fix the arguments order. Need to update CodegenUpdateTuple() too.
-  void UpdateTuple(AggFnEvaluator** agg_fn_evals, Tuple* tuple, TupleRow* row,
-      bool is_merge = false) noexcept;
-
-  /// Called on the intermediate tuple of each group after all input rows have been
-  /// consumed and aggregated. Computes the final aggregate values to be returned in
-  /// GetNext() using the agg fn evaluators' Serialize() or Finalize().
-  /// For the Finalize() case if the output tuple is different from the intermediate
-  /// tuple, then a new tuple is allocated from 'pool' to hold the final result.
-  /// Grouping values are copied into the output tuple and the the output tuple holding
-  /// the finalized/serialized aggregate values is returned.
-  /// TODO: Coordinate the allocation of new tuples with the release of memory
-  /// so as not to make memory consumption blow up.
-  Tuple* GetOutputTuple(
-      const std::vector<AggFnEvaluator*>& agg_fn_evals, Tuple* tuple, MemPool* pool);
-
-  /// Do the aggregation for all tuple rows in the batch when there is no grouping.
-  /// This function is replaced by codegen.
-  Status ProcessBatchNoGrouping(RowBatch* batch) WARN_UNUSED_RESULT;
 
   /// Processes a batch of rows. This is the core function of the algorithm. We partition
   /// the rows into hash_partitions_, spilling as necessary.
@@ -565,18 +477,10 @@ class GroupingAggregator : public Aggregator {
   template <bool AGGREGATED_ROWS>
   Status ProcessStream(BufferedTupleStream* input_stream) WARN_UNUSED_RESULT;
 
-  /// Output 'singleton_output_tuple_' and transfer memory to 'row_batch'.
-  void GetSingletonOutput(RowBatch* row_batch);
-
   /// Get rows for the next rowbatch from the next partition. Sets 'partition_eos_' to
   /// true if all rows from all partitions have been returned or the limit is reached.
   Status GetRowsFromPartition(
       RuntimeState* state, RowBatch* row_batch) WARN_UNUSED_RESULT;
-
-  /// Get output rows from child for streaming pre-aggregation. Aggregates some rows with
-  /// hash table and passes through other rows converted into the intermediate
-  /// tuple format. Sets 'child_eos_' once all rows from child have been returned.
-  Status GetRowsStreaming(RuntimeState* state, RowBatch* row_batch) WARN_UNUSED_RESULT;
 
   /// Return true if we should keep expanding hash tables in the preagg. If false,
   /// the preagg should pass through any rows it can't fit in its tables.
@@ -671,24 +575,6 @@ class GroupingAggregator : public Aggregator {
   /// Calls finalizes on all tuples starting at 'it'.
   void CleanupHashTbl(
       const std::vector<AggFnEvaluator*>& agg_fn_evals, HashTable::Iterator it);
-
-  /// Codegen for updating aggregate expressions agg_fns_[agg_fn_idx]
-  /// and returns the IR function in 'fn'. Returns non-OK status if codegen
-  /// is unsuccessful.
-  Status CodegenUpdateSlot(LlvmCodeGen* codegen, int agg_fn_idx,
-      SlotDescriptor* slot_desc, llvm::Function** fn) WARN_UNUSED_RESULT;
-
-  /// Codegen a call to a function implementing the UDA interface with input values
-  /// from 'input_vals'. 'dst_val' should contain the previous value of the aggregate
-  /// function, and 'updated_dst_val' is set to the new value after the Update or Merge
-  /// operation is applied. The instruction sequence for the UDA call is inserted at
-  /// the insert position of 'builder'.
-  Status CodegenCallUda(LlvmCodeGen* codegen, LlvmBuilder* builder, AggFn* agg_fn,
-      llvm::Value* agg_fn_ctx_arg, const std::vector<CodegenAnyVal>& input_vals,
-      const CodegenAnyVal& dst_val, CodegenAnyVal* updated_dst_val) WARN_UNUSED_RESULT;
-
-  /// Codegen UpdateTuple(). Returns non-OK status if codegen is unsuccessful.
-  Status CodegenUpdateTuple(LlvmCodeGen* codegen, llvm::Function** fn) WARN_UNUSED_RESULT;
 
   /// Codegen the non-streaming process row batch loop. The loop has already been
   /// compiled to IR and loaded into the codegen object. UpdateAggTuple has also been
