@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#include "exec/partitioned-aggregation-node.h"
+#include "exec/grouping-aggregator.h"
 
 #include "exec/hash-table.inline.h"
 #include "exprs/agg-fn-evaluator.h"
@@ -27,7 +27,7 @@
 
 using namespace impala;
 
-Status PartitionedAggregationNode::ProcessBatchNoGrouping(RowBatch* batch) {
+Status GroupingAggregator::ProcessBatchNoGrouping(RowBatch* batch) {
   Tuple* output_tuple = singleton_output_tuple_;
   FOREACH_ROW(batch, 0, batch_iter) {
     UpdateTuple(agg_fn_evals_.data(), output_tuple, batch_iter.Get());
@@ -36,7 +36,7 @@ Status PartitionedAggregationNode::ProcessBatchNoGrouping(RowBatch* batch) {
 }
 
 template <bool AGGREGATED_ROWS>
-Status PartitionedAggregationNode::ProcessBatch(RowBatch* batch,
+Status GroupingAggregator::ProcessBatch(RowBatch* batch,
     TPrefetchMode::type prefetch_mode, HashTableCtx* __restrict__ ht_ctx) {
   DCHECK(!hash_partitions_.empty());
   DCHECK(!is_streaming_preagg_);
@@ -65,9 +65,8 @@ Status PartitionedAggregationNode::ProcessBatch(RowBatch* batch,
 }
 
 template <bool AGGREGATED_ROWS>
-void IR_ALWAYS_INLINE PartitionedAggregationNode::EvalAndHashPrefetchGroup(
-    RowBatch* batch, int start_row_idx, TPrefetchMode::type prefetch_mode,
-    HashTableCtx* ht_ctx) {
+void IR_ALWAYS_INLINE GroupingAggregator::EvalAndHashPrefetchGroup(RowBatch* batch,
+    int start_row_idx, TPrefetchMode::type prefetch_mode, HashTableCtx* ht_ctx) {
   HashTableCtx::ExprValuesCache* expr_vals_cache = ht_ctx->expr_values_cache();
   const int cache_size = expr_vals_cache->capacity();
 
@@ -96,7 +95,7 @@ void IR_ALWAYS_INLINE PartitionedAggregationNode::EvalAndHashPrefetchGroup(
 }
 
 template <bool AGGREGATED_ROWS>
-Status PartitionedAggregationNode::ProcessRow(
+Status GroupingAggregator::ProcessRow(
     TupleRow* __restrict__ row, HashTableCtx* __restrict__ ht_ctx) {
   HashTableCtx::ExprValuesCache* expr_vals_cache = ht_ctx->expr_values_cache();
   // Hoist lookups out of non-null branch to speed up non-null case.
@@ -139,7 +138,7 @@ Status PartitionedAggregationNode::ProcessRow(
 }
 
 template <bool AGGREGATED_ROWS>
-Status PartitionedAggregationNode::AddIntermediateTuple(Partition* __restrict__ partition,
+Status GroupingAggregator::AddIntermediateTuple(Partition* __restrict__ partition,
     TupleRow* __restrict__ row, uint32_t hash, HashTable::Iterator insert_it) {
   while (true) {
     DCHECK(partition->aggregated_row_stream->is_pinned());
@@ -164,7 +163,7 @@ Status PartitionedAggregationNode::AddIntermediateTuple(Partition* __restrict__ 
   }
 }
 
-Status PartitionedAggregationNode::ProcessBatchStreaming(bool needs_serialize,
+Status GroupingAggregator::ProcessBatchStreaming(bool needs_serialize,
     TPrefetchMode::type prefetch_mode, RowBatch* in_batch, RowBatch* out_batch,
     HashTableCtx* __restrict__ ht_ctx, int remaining_capacity[PARTITION_FANOUT]) {
   DCHECK(is_streaming_preagg_);
@@ -214,7 +213,7 @@ Status PartitionedAggregationNode::ProcessBatchStreaming(bool needs_serialize,
   return Status::OK();
 }
 
-bool PartitionedAggregationNode::TryAddToHashTable(HashTableCtx* __restrict__ ht_ctx,
+bool GroupingAggregator::TryAddToHashTable(HashTableCtx* __restrict__ ht_ctx,
     Partition* __restrict__ partition, HashTable* __restrict__ hash_tbl,
     TupleRow* __restrict__ in_row, uint32_t hash, int* __restrict__ remaining_capacity,
     Status* status) {
@@ -247,7 +246,7 @@ bool PartitionedAggregationNode::TryAddToHashTable(HashTableCtx* __restrict__ ht
 }
 
 // Instantiate required templates.
-template Status PartitionedAggregationNode::ProcessBatch<false>(
+template Status GroupingAggregator::ProcessBatch<false>(
     RowBatch*, TPrefetchMode::type, HashTableCtx*);
-template Status PartitionedAggregationNode::ProcessBatch<true>(
+template Status GroupingAggregator::ProcessBatch<true>(
     RowBatch*, TPrefetchMode::type, HashTableCtx*);

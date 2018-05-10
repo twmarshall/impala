@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#include "exec/partitioned-aggregation-node.h"
+#include "exec/streaming-aggregation-node.h"
 
 #include <math.h>
 #include <algorithm>
@@ -57,8 +57,8 @@ using namespace strings;
 
 namespace impala {
 
-const char* PartitionedAggregationNode::LLVM_CLASS_NAME =
-    "class.impala::PartitionedAggregationNode";
+const char* StreamingAggregationNode::LLVM_CLASS_NAME =
+    "class.impala::StreamingAggregationNode";
 
 /// The minimum reduction factor (input rows divided by output rows) to grow hash tables
 /// in a streaming preaggregation, given that the hash tables are currently the given
@@ -101,7 +101,7 @@ static const StreamingHtMinReductionEntry STREAMING_HT_MIN_REDUCTION[] = {
 static const int STREAMING_HT_MIN_REDUCTION_SIZE =
     sizeof(STREAMING_HT_MIN_REDUCTION) / sizeof(STREAMING_HT_MIN_REDUCTION[0]);
 
-PartitionedAggregationNode::PartitionedAggregationNode(
+StreamingAggregationNode::StreamingAggregationNode(
     ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs)
   : ExecNode(pool, tnode, descs),
     intermediate_tuple_id_(tnode.agg_node.intermediate_tuple_id),
@@ -144,7 +144,7 @@ PartitionedAggregationNode::PartitionedAggregationNode(
   }
 }
 
-Status PartitionedAggregationNode::Init(const TPlanNode& tnode, RuntimeState* state) {
+Status StreamingAggregationNode::Init(const TPlanNode& tnode, RuntimeState* state) {
   RETURN_IF_ERROR(ExecNode::Init(tnode, state));
 
   DCHECK(intermediate_tuple_desc_ != nullptr);
@@ -180,7 +180,7 @@ Status PartitionedAggregationNode::Init(const TPlanNode& tnode, RuntimeState* st
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::Prepare(RuntimeState* state) {
+Status StreamingAggregationNode::Prepare(RuntimeState* state) {
   SCOPED_TIMER(runtime_profile_->total_time_counter());
 
   RETURN_IF_ERROR(ExecNode::Prepare(state));
@@ -227,7 +227,7 @@ Status PartitionedAggregationNode::Prepare(RuntimeState* state) {
   return Status::OK();
 }
 
-void PartitionedAggregationNode::Codegen(RuntimeState* state) {
+void StreamingAggregationNode::Codegen(RuntimeState* state) {
   DCHECK(state->ShouldCodegen());
   ExecNode::Codegen(state);
   if (IsNodeCodegenDisabled()) return;
@@ -241,7 +241,7 @@ void PartitionedAggregationNode::Codegen(RuntimeState* state) {
   runtime_profile()->AddCodegenMsg(codegen_status.ok(), codegen_status);
 }
 
-Status PartitionedAggregationNode::Open(RuntimeState* state) {
+Status StreamingAggregationNode::Open(RuntimeState* state) {
   SCOPED_TIMER(runtime_profile_->total_time_counter());
   // Open the child before consuming resources in this node.
   RETURN_IF_ERROR(child(0)->Open(state));
@@ -340,7 +340,7 @@ Status PartitionedAggregationNode::Open(RuntimeState* state) {
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::GetNext(
+Status StreamingAggregationNode::GetNext(
     RuntimeState* state, RowBatch* row_batch, bool* eos) {
   SCOPED_TIMER(runtime_profile_->total_time_counter());
   RETURN_IF_ERROR(ExecDebugAction(TExecNodePhase::GETNEXT, state));
@@ -374,7 +374,7 @@ Status PartitionedAggregationNode::GetNext(
   return Status::OK();
 }
 
-void PartitionedAggregationNode::GetSingletonOutput(RowBatch* row_batch) {
+void StreamingAggregationNode::GetSingletonOutput(RowBatch* row_batch) {
   DCHECK(grouping_exprs_.empty());
   int row_idx = row_batch->AddRow();
   TupleRow* row = row_batch->GetRow(row_idx);
@@ -398,7 +398,7 @@ void PartitionedAggregationNode::GetSingletonOutput(RowBatch* row_batch) {
   singleton_output_tuple_ = NULL;
 }
 
-Status PartitionedAggregationNode::GetRowsFromPartition(
+Status StreamingAggregationNode::GetRowsFromPartition(
     RuntimeState* state, RowBatch* row_batch) {
   DCHECK(!row_batch->AtCapacity());
   if (output_iterator_.AtEnd()) {
@@ -457,7 +457,7 @@ Status PartitionedAggregationNode::GetRowsFromPartition(
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::GetRowsStreaming(
+Status StreamingAggregationNode::GetRowsStreaming(
     RuntimeState* state, RowBatch* out_batch) {
   DCHECK(!child_eos_);
   DCHECK(is_streaming_preagg_);
@@ -527,7 +527,7 @@ Status PartitionedAggregationNode::GetRowsStreaming(
   return Status::OK();
 }
 
-bool PartitionedAggregationNode::ShouldExpandPreaggHashTables() const {
+bool StreamingAggregationNode::ShouldExpandPreaggHashTables() const {
   int64_t ht_mem = 0;
   int64_t ht_rows = 0;
   for (int i = 0; i < PARTITION_FANOUT; ++i) {
@@ -575,7 +575,7 @@ bool PartitionedAggregationNode::ShouldExpandPreaggHashTables() const {
   return estimated_reduction > min_reduction;
 }
 
-void PartitionedAggregationNode::CleanupHashTbl(
+void StreamingAggregationNode::CleanupHashTbl(
     const vector<AggFnEvaluator*>& agg_fn_evals, HashTable::Iterator it) {
   if (!needs_finalize_ && !needs_serialize_) return;
 
@@ -605,7 +605,7 @@ void PartitionedAggregationNode::CleanupHashTbl(
   }
 }
 
-Status PartitionedAggregationNode::Reset(RuntimeState* state) {
+Status StreamingAggregationNode::Reset(RuntimeState* state) {
   DCHECK(!is_streaming_preagg_) << "Cannot reset preaggregation";
   if (!grouping_exprs_.empty()) {
     child_eos_ = false;
@@ -617,7 +617,7 @@ Status PartitionedAggregationNode::Reset(RuntimeState* state) {
   return ExecNode::Reset(state);
 }
 
-void PartitionedAggregationNode::Close(RuntimeState* state) {
+void StreamingAggregationNode::Close(RuntimeState* state) {
   if (is_closed()) return;
 
   if (!singleton_output_tuple_returned_) {
@@ -650,11 +650,11 @@ void PartitionedAggregationNode::Close(RuntimeState* state) {
   ExecNode::Close(state);
 }
 
-PartitionedAggregationNode::Partition::~Partition() {
+StreamingAggregationNode::Partition::~Partition() {
   DCHECK(is_closed);
 }
 
-Status PartitionedAggregationNode::Partition::InitStreams() {
+Status StreamingAggregationNode::Partition::InitStreams() {
   agg_fn_perm_pool.reset(new MemPool(parent->expr_mem_tracker()));
   DCHECK_EQ(agg_fn_evals.size(), 0);
   AggFnEvaluator::ShallowClone(parent->partition_pool_.get(), agg_fn_perm_pool.get(),
@@ -694,7 +694,7 @@ Status PartitionedAggregationNode::Partition::InitStreams() {
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::Partition::InitHashTable(bool* got_memory) {
+Status StreamingAggregationNode::Partition::InitHashTable(bool* got_memory) {
   DCHECK(aggregated_row_stream != nullptr);
   DCHECK(hash_tbl == nullptr);
   // We use the upper PARTITION_FANOUT num bits to pick the partition so only the
@@ -709,7 +709,7 @@ Status PartitionedAggregationNode::Partition::InitHashTable(bool* got_memory) {
   return hash_tbl->Init(got_memory);
 }
 
-Status PartitionedAggregationNode::Partition::SerializeStreamForSpilling() {
+Status StreamingAggregationNode::Partition::SerializeStreamForSpilling() {
   DCHECK(!parent->is_streaming_preagg_);
   if (parent->needs_serialize_) {
     // We need to do a lot more work in this case. This step effectively does a merge
@@ -772,7 +772,7 @@ Status PartitionedAggregationNode::Partition::SerializeStreamForSpilling() {
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::Partition::Spill(bool more_aggregate_rows) {
+Status StreamingAggregationNode::Partition::Spill(bool more_aggregate_rows) {
   DCHECK(!parent->is_streaming_preagg_);
   DCHECK(!is_closed);
   DCHECK(!is_spilled());
@@ -813,7 +813,7 @@ Status PartitionedAggregationNode::Partition::Spill(bool more_aggregate_rows) {
   return Status::OK();
 }
 
-void PartitionedAggregationNode::Partition::Close(bool finalize_rows) {
+void StreamingAggregationNode::Partition::Close(bool finalize_rows) {
   if (is_closed) return;
   is_closed = true;
   if (aggregated_row_stream.get() != NULL) {
@@ -833,7 +833,7 @@ void PartitionedAggregationNode::Partition::Close(bool finalize_rows) {
   if (agg_fn_perm_pool.get() != nullptr) agg_fn_perm_pool->FreeAll();
 }
 
-Tuple* PartitionedAggregationNode::ConstructSingletonOutputTuple(
+Tuple* StreamingAggregationNode::ConstructSingletonOutputTuple(
     const vector<AggFnEvaluator*>& agg_fn_evals, MemPool* pool) {
   DCHECK(grouping_exprs_.empty());
   Tuple* output_tuple = Tuple::Create(intermediate_tuple_desc_->byte_size(), pool);
@@ -841,7 +841,7 @@ Tuple* PartitionedAggregationNode::ConstructSingletonOutputTuple(
   return output_tuple;
 }
 
-Tuple* PartitionedAggregationNode::ConstructIntermediateTuple(
+Tuple* StreamingAggregationNode::ConstructIntermediateTuple(
     const vector<AggFnEvaluator*>& agg_fn_evals, MemPool* pool, Status* status) noexcept {
   const int fixed_size = intermediate_tuple_desc_->byte_size();
   const int varlen_size = GroupingExprsVarlenSize();
@@ -862,7 +862,7 @@ Tuple* PartitionedAggregationNode::ConstructIntermediateTuple(
   return intermediate_tuple;
 }
 
-Tuple* PartitionedAggregationNode::ConstructIntermediateTuple(
+Tuple* StreamingAggregationNode::ConstructIntermediateTuple(
     const vector<AggFnEvaluator*>& agg_fn_evals, BufferedTupleStream* stream,
     Status* status) noexcept {
   DCHECK(stream != NULL && status != NULL);
@@ -886,7 +886,7 @@ Tuple* PartitionedAggregationNode::ConstructIntermediateTuple(
   return tuple;
 }
 
-int PartitionedAggregationNode::GroupingExprsVarlenSize() {
+int StreamingAggregationNode::GroupingExprsVarlenSize() {
   int varlen_size = 0;
   // TODO: The hash table could compute this as it hashes.
   for (int expr_idx : string_grouping_exprs_) {
@@ -898,7 +898,7 @@ int PartitionedAggregationNode::GroupingExprsVarlenSize() {
 }
 
 // TODO: codegen this function.
-void PartitionedAggregationNode::CopyGroupingValues(
+void StreamingAggregationNode::CopyGroupingValues(
     Tuple* intermediate_tuple, uint8_t* buffer, int varlen_size) {
   // Copy over all grouping slots (the variable length data is copied below).
   for (int i = 0; i < grouping_exprs_.size(); ++i) {
@@ -926,7 +926,7 @@ void PartitionedAggregationNode::CopyGroupingValues(
 }
 
 // TODO: codegen this function.
-void PartitionedAggregationNode::InitAggSlots(
+void StreamingAggregationNode::InitAggSlots(
     const vector<AggFnEvaluator*>& agg_fn_evals, Tuple* intermediate_tuple) {
   vector<SlotDescriptor*>::const_iterator slot_desc =
       intermediate_tuple_desc_->slots().begin() + grouping_exprs_.size();
@@ -963,7 +963,7 @@ void PartitionedAggregationNode::InitAggSlots(
   }
 }
 
-void PartitionedAggregationNode::UpdateTuple(
+void StreamingAggregationNode::UpdateTuple(
     AggFnEvaluator** agg_fn_evals, Tuple* tuple, TupleRow* row, bool is_merge) noexcept {
   DCHECK(tuple != NULL || agg_fns_.empty());
   for (int i = 0; i < agg_fns_.size(); ++i) {
@@ -975,7 +975,7 @@ void PartitionedAggregationNode::UpdateTuple(
   }
 }
 
-Tuple* PartitionedAggregationNode::GetOutputTuple(
+Tuple* StreamingAggregationNode::GetOutputTuple(
     const vector<AggFnEvaluator*>& agg_fn_evals, Tuple* tuple, MemPool* pool) {
   DCHECK(tuple != NULL || agg_fn_evals.empty()) << tuple;
   Tuple* dst = tuple;
@@ -1004,7 +1004,7 @@ Tuple* PartitionedAggregationNode::GetOutputTuple(
 }
 
 template <bool AGGREGATED_ROWS>
-Status PartitionedAggregationNode::AppendSpilledRow(
+Status StreamingAggregationNode::AppendSpilledRow(
     Partition* __restrict__ partition, TupleRow* __restrict__ row) {
   DCHECK(!is_streaming_preagg_);
   DCHECK(partition->is_spilled());
@@ -1025,16 +1025,16 @@ Status PartitionedAggregationNode::AppendSpilledRow(
   }
 }
 
-string PartitionedAggregationNode::DebugString(int indentation_level) const {
+string StreamingAggregationNode::DebugString(int indentation_level) const {
   stringstream ss;
   DebugString(indentation_level, &ss);
   return ss.str();
 }
 
-void PartitionedAggregationNode::DebugString(
+void StreamingAggregationNode::DebugString(
     int indentation_level, stringstream* out) const {
   *out << string(indentation_level * 2, ' ');
-  *out << "PartitionedAggregationNode("
+  *out << "StreamingAggregationNode("
        << "intermediate_tuple_id=" << intermediate_tuple_id_
        << " output_tuple_id=" << output_tuple_id_ << " needs_finalize=" << needs_finalize_
        << " grouping_exprs=" << ScalarExpr::DebugString(grouping_exprs_)
@@ -1043,7 +1043,7 @@ void PartitionedAggregationNode::DebugString(
   *out << ")";
 }
 
-Status PartitionedAggregationNode::CreateHashPartitions(
+Status StreamingAggregationNode::CreateHashPartitions(
     int level, int single_partition_idx) {
   if (is_streaming_preagg_) DCHECK_EQ(level, 0);
   if (UNLIKELY(level >= MAX_PARTITION_DEPTH)) {
@@ -1105,7 +1105,7 @@ Status PartitionedAggregationNode::CreateHashPartitions(
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::CheckAndResizeHashPartitions(
+Status StreamingAggregationNode::CheckAndResizeHashPartitions(
     bool partitioning_aggregated_rows, int num_rows, const HashTableCtx* ht_ctx) {
   DCHECK(!is_streaming_preagg_);
   for (int i = 0; i < PARTITION_FANOUT; ++i) {
@@ -1124,7 +1124,7 @@ Status PartitionedAggregationNode::CheckAndResizeHashPartitions(
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::NextPartition() {
+Status StreamingAggregationNode::NextPartition() {
   DCHECK(output_partition_ == nullptr);
 
   if (!IsInSubplan() && spilled_partitions_.empty()) {
@@ -1174,7 +1174,7 @@ Status PartitionedAggregationNode::NextPartition() {
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::BuildSpilledPartition(Partition** built_partition) {
+Status StreamingAggregationNode::BuildSpilledPartition(Partition** built_partition) {
   DCHECK(!spilled_partitions_.empty());
   DCHECK(!is_streaming_preagg_);
   // Leave the partition in 'spilled_partitions_' to be closed if we hit an error.
@@ -1216,7 +1216,7 @@ Status PartitionedAggregationNode::BuildSpilledPartition(Partition** built_parti
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::RepartitionSpilledPartition() {
+Status StreamingAggregationNode::RepartitionSpilledPartition() {
   DCHECK(!spilled_partitions_.empty());
   DCHECK(!is_streaming_preagg_);
   // Leave the partition in 'spilled_partitions_' to be closed if we hit an error.
@@ -1262,7 +1262,7 @@ Status PartitionedAggregationNode::RepartitionSpilledPartition() {
 }
 
 template <bool AGGREGATED_ROWS>
-Status PartitionedAggregationNode::ProcessStream(BufferedTupleStream* input_stream) {
+Status StreamingAggregationNode::ProcessStream(BufferedTupleStream* input_stream) {
   DCHECK(!is_streaming_preagg_);
   if (input_stream->num_rows() > 0) {
     while (true) {
@@ -1290,7 +1290,7 @@ Status PartitionedAggregationNode::ProcessStream(BufferedTupleStream* input_stre
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::SpillPartition(bool more_aggregate_rows) {
+Status StreamingAggregationNode::SpillPartition(bool more_aggregate_rows) {
   int64_t max_freed_mem = 0;
   int partition_idx = -1;
 
@@ -1322,7 +1322,7 @@ Status PartitionedAggregationNode::SpillPartition(bool more_aggregate_rows) {
   return hash_partitions_[partition_idx]->Spill(more_aggregate_rows);
 }
 
-Status PartitionedAggregationNode::MoveHashPartitions(int64_t num_input_rows) {
+Status StreamingAggregationNode::MoveHashPartitions(int64_t num_input_rows) {
   DCHECK(!hash_partitions_.empty());
   stringstream ss;
   ss << "PA(node_id=" << id() << ") partitioned(level=" << hash_partitions_[0]->level
@@ -1365,7 +1365,7 @@ Status PartitionedAggregationNode::MoveHashPartitions(int64_t num_input_rows) {
   return Status::OK();
 }
 
-void PartitionedAggregationNode::PushSpilledPartition(Partition* partition) {
+void StreamingAggregationNode::PushSpilledPartition(Partition* partition) {
   DCHECK(partition->is_spilled());
   DCHECK(partition->hash_tbl == nullptr);
   // Ensure all pages in the spilled partition's streams are unpinned by invalidating
@@ -1376,7 +1376,7 @@ void PartitionedAggregationNode::PushSpilledPartition(Partition* partition) {
   spilled_partitions_.push_front(partition);
 }
 
-void PartitionedAggregationNode::ClosePartitions() {
+void StreamingAggregationNode::ClosePartitions() {
   for (Partition* partition : hash_partitions_) {
     if (partition != nullptr) partition->Close(true);
   }
@@ -1474,12 +1474,12 @@ void PartitionedAggregationNode::ClosePartitions() {
 //   ret void
 // }
 //
-Status PartitionedAggregationNode::CodegenUpdateSlot(LlvmCodeGen* codegen, int agg_fn_idx,
+Status StreamingAggregationNode::CodegenUpdateSlot(LlvmCodeGen* codegen, int agg_fn_idx,
     SlotDescriptor* slot_desc, llvm::Function** fn) {
   llvm::PointerType* agg_fn_eval_type = codegen->GetStructPtrType<AggFnEvaluator>();
   llvm::StructType* tuple_struct = intermediate_tuple_desc_->GetLlvmStruct(codegen);
   if (tuple_struct == NULL) {
-    return Status("PartitionedAggregationNode::CodegenUpdateSlot(): failed to generate "
+    return Status("StreamingAggregationNode::CodegenUpdateSlot(): failed to generate "
                   "intermediate tuple desc");
   }
   llvm::PointerType* tuple_ptr_type = codegen->GetPtrType(tuple_struct);
@@ -1638,13 +1638,13 @@ Status PartitionedAggregationNode::CodegenUpdateSlot(LlvmCodeGen* codegen, int a
 
   *fn = codegen->FinalizeFunction(*fn);
   if (*fn == NULL) {
-    return Status("PartitionedAggregationNode::CodegenUpdateSlot(): codegen'd "
+    return Status("StreamingAggregationNode::CodegenUpdateSlot(): codegen'd "
                   "UpdateSlot() function failed verification, see log");
   }
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::CodegenCallUda(LlvmCodeGen* codegen,
+Status StreamingAggregationNode::CodegenCallUda(LlvmCodeGen* codegen,
     LlvmBuilder* builder, AggFn* agg_fn, llvm::Value* agg_fn_ctx_val,
     const vector<CodegenAnyVal>& input_vals, const CodegenAnyVal& dst_val,
     CodegenAnyVal* updated_dst_val) {
@@ -1690,7 +1690,7 @@ Status PartitionedAggregationNode::CodegenCallUda(LlvmCodeGen* codegen,
 // For the query:
 // select count(*), count(int_col), sum(double_col) the IR looks like:
 //
-// define void @UpdateTuple(%"class.impala::PartitionedAggregationNode"* %this_ptr,
+// define void @UpdateTuple(%"class.impala::StreamingAggregationNode"* %this_ptr,
 //     %"class.impala::AggFnEvaluator"** %agg_fn_evals, %"class.impala::Tuple"* %tuple,
 //     %"class.impala::TupleRow"* %row, i1 %is_merge) #33 {
 // entry:
@@ -1715,23 +1715,23 @@ Status PartitionedAggregationNode::CodegenCallUda(LlvmCodeGen* codegen,
 //   ret void
 // }
 //
-Status PartitionedAggregationNode::CodegenUpdateTuple(
+Status StreamingAggregationNode::CodegenUpdateTuple(
     LlvmCodeGen* codegen, llvm::Function** fn) {
   for (const SlotDescriptor* slot_desc : intermediate_tuple_desc_->slots()) {
     if (slot_desc->type().type == TYPE_CHAR) {
-      return Status::Expected("PartitionedAggregationNode::CodegenUpdateTuple(): cannot "
+      return Status::Expected("StreamingAggregationNode::CodegenUpdateTuple(): cannot "
                               "codegen CHAR in aggregations");
     }
   }
 
   if (intermediate_tuple_desc_->GetLlvmStruct(codegen) == NULL) {
-    return Status::Expected("PartitionedAggregationNode::CodegenUpdateTuple(): failed to"
+    return Status::Expected("StreamingAggregationNode::CodegenUpdateTuple(): failed to"
                             " generate intermediate tuple desc");
   }
 
   // Get the types to match the UpdateTuple signature
   llvm::PointerType* agg_node_ptr_type =
-      codegen->GetStructPtrType<PartitionedAggregationNode>();
+      codegen->GetStructPtrType<StreamingAggregationNode>();
   llvm::PointerType* evals_type = codegen->GetStructPtrPtrType<AggFnEvaluator>();
   llvm::PointerType* tuple_ptr_type = codegen->GetStructPtrType<Tuple>();
   llvm::PointerType* tuple_row_ptr_type = codegen->GetStructPtrType<TupleRow>();
@@ -1797,13 +1797,13 @@ Status PartitionedAggregationNode::CodegenUpdateTuple(
   // CodegenProcessBatch() does the final optimizations.
   *fn = codegen->FinalizeFunction(*fn);
   if (*fn == NULL) {
-    return Status("PartitionedAggregationNode::CodegenUpdateTuple(): codegen'd "
+    return Status("StreamingAggregationNode::CodegenUpdateTuple(): codegen'd "
                   "UpdateTuple() function failed verification, see log");
   }
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::CodegenProcessBatch(
+Status StreamingAggregationNode::CodegenProcessBatch(
     LlvmCodeGen* codegen, TPrefetchMode::type prefetch_mode) {
   llvm::Function* update_tuple_fn;
   RETURN_IF_ERROR(CodegenUpdateTuple(codegen, &update_tuple_fn));
@@ -1862,7 +1862,7 @@ Status PartitionedAggregationNode::CodegenProcessBatch(
   DCHECK_GE(replaced, 1);
   process_batch_fn = codegen->FinalizeFunction(process_batch_fn);
   if (process_batch_fn == NULL) {
-    return Status("PartitionedAggregationNode::CodegenProcessBatch(): codegen'd "
+    return Status("StreamingAggregationNode::CodegenProcessBatch(): codegen'd "
                   "ProcessBatch() function failed verification, see log");
   }
 
@@ -1873,7 +1873,7 @@ Status PartitionedAggregationNode::CodegenProcessBatch(
   return Status::OK();
 }
 
-Status PartitionedAggregationNode::CodegenProcessBatchStreaming(
+Status StreamingAggregationNode::CodegenProcessBatchStreaming(
     LlvmCodeGen* codegen, TPrefetchMode::type prefetch_mode) {
   DCHECK(is_streaming_preagg_);
 
@@ -1932,7 +1932,7 @@ Status PartitionedAggregationNode::CodegenProcessBatchStreaming(
   DCHECK(process_batch_streaming_fn != NULL);
   process_batch_streaming_fn = codegen->FinalizeFunction(process_batch_streaming_fn);
   if (process_batch_streaming_fn == NULL) {
-    return Status("PartitionedAggregationNode::CodegenProcessBatchStreaming(): codegen'd "
+    return Status("StreamingAggregationNode::CodegenProcessBatchStreaming(): codegen'd "
                   "ProcessBatchStreaming() function failed verification, see log");
   }
 
@@ -1942,7 +1942,6 @@ Status PartitionedAggregationNode::CodegenProcessBatchStreaming(
 }
 
 // Instantiate required templates.
-template Status PartitionedAggregationNode::AppendSpilledRow<false>(
-    Partition*, TupleRow*);
-template Status PartitionedAggregationNode::AppendSpilledRow<true>(Partition*, TupleRow*);
+template Status StreamingAggregationNode::AppendSpilledRow<false>(Partition*, TupleRow*);
+template Status StreamingAggregationNode::AppendSpilledRow<true>(Partition*, TupleRow*);
 } // namespace impala

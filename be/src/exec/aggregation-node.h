@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#ifndef IMPALA_EXEC_PARTITIONED_AGGREGATION_NODE_H
-#define IMPALA_EXEC_PARTITIONED_AGGREGATION_NODE_H
+#ifndef IMPALA_EXEC_AGGREGATION_NODE_H
+#define IMPALA_EXEC_AGGREGATION_NODE_H
 
 #include <deque>
 
@@ -127,10 +127,9 @@ class SlotDescriptor;
 /// There are so many contexts in use that a plain "ctx" variable should never be used.
 /// Likewise, it's easy to mixup the agg fn ctxs, there should be a way to simplify this.
 /// TODO: support an Init() method with an initial value in the UDAF interface.
-class PartitionedAggregationNode : public ExecNode {
+class AggregationNode : public ExecNode {
  public:
-  PartitionedAggregationNode(
-      ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
+  AggregationNode(ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
 
   virtual Status Init(const TPlanNode& tnode, RuntimeState* state);
   virtual Status Prepare(RuntimeState* state);
@@ -248,17 +247,17 @@ class PartitionedAggregationNode : public ExecNode {
   Partition* output_partition_;
   HashTable::Iterator output_iterator_;
 
-  typedef Status (*ProcessBatchNoGroupingFn)(PartitionedAggregationNode*, RowBatch*);
+  typedef Status (*ProcessBatchNoGroupingFn)(AggregationNode*, RowBatch*);
   /// Jitted ProcessBatchNoGrouping function pointer. Null if codegen is disabled.
   ProcessBatchNoGroupingFn process_batch_no_grouping_fn_;
 
   typedef Status (*ProcessBatchFn)(
-      PartitionedAggregationNode*, RowBatch*, TPrefetchMode::type, HashTableCtx*);
+      AggregationNode*, RowBatch*, TPrefetchMode::type, HashTableCtx*);
   /// Jitted ProcessBatch function pointer. Null if codegen is disabled.
   ProcessBatchFn process_batch_fn_;
 
-  typedef Status (*ProcessBatchStreamingFn)(PartitionedAggregationNode*, bool,
-      TPrefetchMode::type, RowBatch*, RowBatch*, HashTableCtx*, int[PARTITION_FANOUT]);
+  typedef Status (*ProcessBatchStreamingFn)(AggregationNode*, bool, TPrefetchMode::type,
+      RowBatch*, RowBatch*, HashTableCtx*, int[PARTITION_FANOUT]);
   /// Jitted ProcessBatchStreaming function pointer.  Null if codegen is disabled.
   ProcessBatchStreamingFn process_batch_streaming_fn_;
 
@@ -361,7 +360,7 @@ class PartitionedAggregationNode : public ExecNode {
   /// initially use small buffers. Streaming pre-aggregations do not spill and do not
   /// require an unaggregated stream.
   struct Partition {
-    Partition(PartitionedAggregationNode* parent, int level, int idx)
+    Partition(AggregationNode* parent, int level, int idx)
       : parent(parent), is_closed(false), level(level), idx(idx) {}
 
     ~Partition();
@@ -395,7 +394,7 @@ class PartitionedAggregationNode : public ExecNode {
 
     bool is_spilled() const { return hash_tbl.get() == NULL; }
 
-    PartitionedAggregationNode* parent;
+    AggregationNode* parent;
 
     /// If true, this partition is closed and there is nothing left to do.
     bool is_closed;
