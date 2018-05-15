@@ -20,8 +20,7 @@
 
 #include <memory>
 
-#include "exec/exec-node.h"
-#include "exec/grouping-aggregator.h"
+#include "exec/aggregation-node-base.h"
 
 namespace impala {
 
@@ -44,14 +43,11 @@ class RuntimeState;
 /// the final aggregation.
 ///
 /// This node only supports grouping aggregations.
-class StreamingAggregationNode : public ExecNode {
+class StreamingAggregationNode : public AggregationNodeBase {
  public:
   StreamingAggregationNode(
       ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
 
-  virtual Status Init(const TPlanNode& tnode, RuntimeState* state) override;
-  virtual Status Prepare(RuntimeState* state) override;
-  virtual void Codegen(RuntimeState* state) override;
   virtual Status Open(RuntimeState* state) override;
   virtual Status GetNext(RuntimeState* state, RowBatch* row_batch, bool* eos) override;
   virtual Status Reset(RuntimeState* state) override;
@@ -70,7 +66,8 @@ class StreamingAggregationNode : public ExecNode {
   /// True if no more rows to process from child.
   bool child_eos_;
 
-  std::unique_ptr<GroupingAggregator> aggregator_;
+  int32_t replicate_agg_idx_;
+  bool child_batch_eos_;
 
   /// END: Members that must be Reset()
   /////////////////////////////////////////

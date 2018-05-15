@@ -33,7 +33,7 @@ class LlvmCodeGen;
 class ObjectPool;
 class RowBatch;
 class RuntimeState;
-class TPlanNode;
+class TAggregator;
 class Tuple;
 
 /// Aggregator for doing non-grouping aggregations. Input is passed to the aggregator
@@ -41,8 +41,8 @@ class Tuple;
 /// not support streaming preaggregation.
 class NonGroupingAggregator : public Aggregator {
  public:
-  NonGroupingAggregator(ExecNode* exec_node, ObjectPool* pool, const TPlanNode& tnode,
-      const DescriptorTbl& descs);
+  NonGroupingAggregator(ExecNode* exec_node, ObjectPool* pool,
+      const TAggregator& taggregator, const DescriptorTbl& descs, int agg_idx);
 
   virtual Status Prepare(RuntimeState* state) override;
   virtual void Codegen(RuntimeState* state) override;
@@ -52,9 +52,14 @@ class NonGroupingAggregator : public Aggregator {
   virtual void Close(RuntimeState* state) override;
 
   virtual Status AddBatch(RuntimeState* state, RowBatch* batch) override;
+  /// NonGroupingAggregators behave the same in streaming and non-streaming contexts, so
+  /// this just calls AddBatch.
+  virtual Status AddBatchStreaming(RuntimeState* state, RowBatch* out_batch,
+      RowBatch* child_batch, bool* eos) override;
   virtual Status InputDone() override { return Status::OK(); }
 
   virtual int num_grouping_exprs() override { return 0; }
+  virtual bool eos() override { return singleton_output_tuple_returned_; }
 
   /// NonGroupingAggregator doesn't create a buffer pool client so it doesn't need the
   /// debug options.

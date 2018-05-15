@@ -47,7 +47,8 @@ enum TPlanNodeType {
   UNNEST_NODE,
   SUBPLAN_NODE,
   KUDU_SCAN_NODE,
-  CARDINALITY_CHECK_NODE
+  CARDINALITY_CHECK_NODE,
+  MULTI_AGGREGATION_NODE
 }
 
 // phases of an execution node
@@ -352,7 +353,26 @@ struct TNestedLoopJoinNode {
   2: optional list<Exprs.TExpr> join_conjuncts
 }
 
-struct TAggregationNode {
+// This contains all of the information computed by the plan as part of the resource
+// profile that is needed by the backend to execute.
+struct TBackendResourceProfile {
+  // The minimum reservation for this plan node in bytes.
+  1: required i64 min_reservation
+
+  // The maximum reservation for this plan node in bytes. MAX_INT64 means effectively
+  // unlimited.
+  2: required i64 max_reservation
+
+  // The spillable buffer size in bytes to use for this node, chosen by the planner.
+  // Set iff the node uses spillable buffers.
+  3: optional i64 spillable_buffer_size
+
+  // The buffer size in bytes that is large enough to fit the largest row to be processed.
+  // Set if the node allocates buffers for rows from the buffer pool.
+  4: optional i64 max_row_buffer_size
+}
+
+struct TAggregator {
   1: optional list<Exprs.TExpr> grouping_exprs
   // aggregate exprs. The root of each expr is the aggregate function. The
   // other exprs are the inputs to the aggregate function.
@@ -372,8 +392,13 @@ struct TAggregationNode {
   // Set to true to use the streaming preagg algorithm. Node must be a preaggregation.
   6: required bool use_streaming_preaggregation
 
-  // Estimate of number of input rows from the planner.
-  7: required i64 estimated_input_cardinality
+  7: required TBackendResourceProfile resource_profile
+}
+
+struct TAggregationNode {
+  1: required list<TAggregator> aggregators
+  2: optional i64 estimated_input_cardinality
+  3: required bool replicate_input
 }
 
 struct TSortInfo {
@@ -520,25 +545,6 @@ struct TUnnestNode {
   // Expr that returns the in-memory collection to be scanned.
   // Currently always a SlotRef into an array-typed slot.
   1: required Exprs.TExpr collection_expr
-}
-
-// This contains all of the information computed by the plan as part of the resource
-// profile that is needed by the backend to execute.
-struct TBackendResourceProfile {
-  // The minimum reservation for this plan node in bytes.
-  1: required i64 min_reservation
-
-  // The maximum reservation for this plan node in bytes. MAX_INT64 means effectively
-  // unlimited.
-  2: required i64 max_reservation
-
-  // The spillable buffer size in bytes to use for this node, chosen by the planner.
-  // Set iff the node uses spillable buffers.
-  3: optional i64 spillable_buffer_size
-
-  // The buffer size in bytes that is large enough to fit the largest row to be processed.
-  // Set if the node allocates buffers for rows from the buffer pool.
-  4: optional i64 max_row_buffer_size
 }
 
 struct TCardinalityCheckNode {
