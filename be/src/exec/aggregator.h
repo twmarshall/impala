@@ -51,6 +51,10 @@ class Tuple;
 class TupleDescriptor;
 class TupleRow;
 
+/// Base class for aggregating rows in the AggregationNode.
+///
+/// Rows are added by calling AddBatch(). Once all rows have been added, InputDone() must
+/// be called and the results can be fetched with GetNext().
 class Aggregator {
  public:
   Aggregator(ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
@@ -82,11 +86,11 @@ class Aggregator {
 
   /// Certain aggregates require a finalize step, which is the final step of the
   /// aggregate after consuming all input rows. The finalize step converts the aggregate
-  /// value into its final form. This is true if this node contains aggregate that
+  /// value into its final form. This is true if this aggregator contains aggregate that
   /// requires a finalize step.
   const bool needs_finalize_;
 
-  /// The list of all aggregate operations for this exec node.
+  /// The list of all aggregate operations for this aggregator.
   std::vector<AggFn*> agg_fns_;
 
   /// Evaluators for each aggregate function. If this is a grouping aggregation, these

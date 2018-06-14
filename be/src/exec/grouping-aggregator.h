@@ -37,8 +37,8 @@ class RowBatch;
 class RuntimeState;
 class Tuple;
 
-/// Node for doing partitioned hash aggregation.
-/// This node consumes the input (which can be from the child(0) or a spilled partition).
+/// Aggregator for doing grouping aggregations. Input is passed to the aggregator through
+/// AddBatch(), or AddBatchStreaming() if this is a pre-agg. Then:
 ///  1. Each row is hashed and we pick a dst partition (hash_partitions_).
 ///  2. If the dst partition is not spilled, we probe into the partitions hash table
 ///  to aggregate/insert the row.
@@ -76,7 +76,7 @@ class Tuple;
 ///
 /// Two-phase aggregation: we support two-phase distributed aggregations, where
 /// pre-aggregrations attempt to reduce the size of data before shuffling data across the
-/// network to be merged by the merge aggregation node. This exec node supports a
+/// network to be merged by the merge aggregation node. This aggregator supports a
 /// streaming mode for pre-aggregations where it maintains a hash table of aggregated
 /// rows, but can pass through unaggregated rows (after transforming them into the
 /// same tuple format as aggregated rows) when a heuristic determines that it is better
@@ -86,10 +86,6 @@ class Tuple;
 /// blocking aggregation algorithm as used in merge aggregations.
 /// TODO: make this less of a heuristic by factoring in the cost of the exchange vs the
 /// cost of the pre-aggregation.
-///
-/// If there are no grouping expressions, there is only a single output row for both
-/// preaggregations and merge aggregations. This case is handled separately to avoid
-/// building hash tables. There is also no need to do streaming preaggregations.
 ///
 /// Handling memory pressure: the node uses two different strategies for responding to
 /// memory pressure, depending on whether it is a streaming pre-aggregation or not. If
@@ -315,7 +311,7 @@ class GroupingAggregator : public Aggregator {
     Status InitHashTable(bool* got_memory) WARN_UNUSED_RESULT;
 
     /// Called in case we need to serialize aggregated rows. This step effectively does
-    /// a merge aggregation in this node.
+    /// a merge aggregation in this aggregator.
     Status SerializeStreamForSpilling() WARN_UNUSED_RESULT;
 
     /// Closes this partition. If finalize_rows is true, this iterates over all rows
@@ -337,8 +333,7 @@ class GroupingAggregator : public Aggregator {
     bool is_closed;
 
     /// How many times rows in this partition have been repartitioned. Partitions created
-    /// from the node's children's input is level 0, 1 after the first repartitionining,
-    /// etc.
+    /// from the aggregator's input is level 0, 1 after the first repartitionining, etc.
     const int level;
 
     /// The index of this partition within 'hash_partitions_' at its level.
@@ -350,8 +345,7 @@ class GroupingAggregator : public Aggregator {
     std::unique_ptr<HashTable> hash_tbl;
 
     /// Clone of parent's agg_fn_evals_. Permanent allocations come from
-    /// 'agg_fn_perm_pool' and result allocations come from the ExecNode's
-    /// 'expr_results_pool_'.
+    /// 'agg_fn_perm_pool' and result allocations come from 'expr_results_pool_'.
     std::vector<AggFnEvaluator*> agg_fn_evals;
 
     /// Pool for permanent allocations for this partition's 'agg_fn_evals'. Freed at the

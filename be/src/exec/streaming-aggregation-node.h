@@ -27,6 +27,10 @@ namespace impala {
 class RowBatch;
 class RuntimeState;
 
+/// Node for doing partitioned hash aggregation.
+/// This node consumes the input from child(0) during GetNext() and then passes it to the
+/// Aggregator, which does the actual work of aggregating.
+/// This node only supports grouping aggregations.
 class StreamingAggregationNode : public ExecNode {
  public:
   StreamingAggregationNode(

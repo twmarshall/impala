@@ -28,6 +28,9 @@ namespace impala {
 class RowBatch;
 class RuntimeState;
 
+/// Node for doing partitioned hash aggregation.
+/// This node consumes the input from child(0) during Open() and then passes it to the
+/// Aggregator, which does the actual work of aggregating.
 class AggregationNode : public ExecNode {
  public:
   AggregationNode(ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
