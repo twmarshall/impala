@@ -28,6 +28,8 @@ import org.apache.impala.catalog.AggregateFunction;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.kudu.shaded.com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
@@ -96,6 +98,7 @@ import com.google.common.collect.Sets;
  * exprs referencing the transposition to the output of the new simplified aggregation.
  */
 public class MultiAggregateInfo {
+  private final static Logger LOG = LoggerFactory.getLogger(MultiAggregateInfo.class);
 
   public static enum AggPhase {
     FIRST,

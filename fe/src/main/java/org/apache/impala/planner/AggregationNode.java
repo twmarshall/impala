@@ -345,7 +345,7 @@ public class AggregationNode extends PlanNode {
           thenExpr = NumericLiteral.create(0);
         } else {
           thenExpr = new FunctionCallExpr(
-              "murmur_hash", Lists.newArrayList(groupingExprs.get(i)));
+              "murmur_hash", Lists.newArrayList(groupingExprs.get(i).clone()));
           thenExpr.analyzeNoThrow(analyzer);
           thenExpr = thenExpr.substitute(aggInfo.getIntermediateSmap(), analyzer, true);
         }
