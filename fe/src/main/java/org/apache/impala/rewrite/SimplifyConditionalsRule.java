@@ -64,7 +64,7 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
 
     Expr simplified;
     if (expr instanceof FunctionCallExpr) {
-      simplified = simplifyFunctionCallExpr((FunctionCallExpr) expr);
+      simplified = simplifyFunctionCallExpr((FunctionCallExpr) expr, analyzer);
     } else if (expr instanceof CompoundPredicate) {
       simplified = simplifyCompoundPredicate((CompoundPredicate) expr);
     } else if (expr instanceof CaseExpr) {
@@ -123,7 +123,8 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
    * COALESCE(null, a, b) -> COALESCE(a, b);
    * COALESCE(<literal>, a, b) -> <literal>, when literal is not NullLiteral;
    */
-  private Expr simplifyCoalesceFunctionCallExpr(FunctionCallExpr expr) {
+  private Expr simplifyCoalesceFunctionCallExpr(FunctionCallExpr expr, Analyzer analyzer)
+      throws AnalysisException {
     int numChildren = expr.getChildren().size();
     Expr result = NullLiteral.create(expr.getType());
     for (int i = 0; i < numChildren; ++i) {
@@ -135,21 +136,24 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
       } else if (i == 0) {
         result = expr;
       } else {
-        List<Expr> newChildren = Lists.newArrayList(expr.getChildren().subList(i, numChildren));
+        List<Expr> newChildren =
+            Lists.newArrayList(expr.getChildren().subList(i, numChildren));
         result = new FunctionCallExpr(expr.getFnName(), newChildren);
+        result.analyze(analyzer);
       }
       break;
     }
     return result;
   }
 
-  private Expr simplifyFunctionCallExpr(FunctionCallExpr expr) {
+  private Expr simplifyFunctionCallExpr(FunctionCallExpr expr, Analyzer analyzer)
+      throws AnalysisException {
     String fnName = expr.getFnName().getFunction();
 
     if (fnName.equals("if")) {
       return simplifyIfFunctionCallExpr(expr);
     } else if (fnName.equals("coalesce")) {
-      return simplifyCoalesceFunctionCallExpr(expr);
+      return simplifyCoalesceFunctionCallExpr(expr, analyzer);
     } else if (IFNULL_ALIASES.contains(fnName)) {
       return simplifyIfNullFunctionCallExpr(expr);
     }
