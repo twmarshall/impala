@@ -356,7 +356,7 @@ find_package(KRPC REQUIRED)
 # KuduClient can use GLOG
 add_definitions(-DKUDU_HEADERS_USE_GLOG)
 if(NOT $ENV{KUDU_CLIENT_DIR} EQUAL "")
-  set(kuduClient_DIR "$ENV{KUDU_CLIENT_DIR}/usr/local/share/kuduClient/cmake")
+  set(kuduClient_DIR "$ENV{KUDU_CLIENT_DIR}/share/kuduClient/cmake")
 else()
   set(kuduClient_DIR "$ENV{IMPALA_TOOLCHAIN}/kudu-$ENV{IMPALA_KUDU_VERSION}")
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "DEBUG")

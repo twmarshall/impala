@@ -302,7 +302,7 @@ def install_kudu_client_if_possible():
 def find_kudu_client_install_dir():
   custom_client_dir = os.environ["KUDU_CLIENT_DIR"]
   if custom_client_dir:
-    install_dir = os.path.join(custom_client_dir, "usr", "local")
+    install_dir = custom_client_dir
     error_if_kudu_client_not_found(install_dir)
   else:
     # If the toolchain appears to have been setup already, then the Kudu client is
