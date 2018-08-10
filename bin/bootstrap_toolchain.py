@@ -100,23 +100,26 @@ def try_get_platform_release_label():
 # Cache "lsb_release -irs" to avoid excessive logging from sh, and
 # to shave a little bit of time.
 lsb_release_cache = None
+def get_os_version(release=None):
+  global lsb_release_cache
+  if lsb_release_cache:
+    release = lsb_release_cache
+  else:
+    release = "".join(map(lambda x: x.lower(), sh.lsb_release("-irs").split()))
+    # Only need to check against the major release if RHEL or CentOS
+    for platform in ['centos', 'redhatenterpriseserver']:
+      if platform in release:
+        release = release.split('.')[0]
+        break
+    lsb_release_cache = release
+  return release
 
 def get_platform_release_label(release=None):
   """Gets the right package label from the OS version. Raise exception if not found.
      'release' can be provided to override the underlying OS version.
   """
-  global lsb_release_cache
   if not release:
-    if lsb_release_cache:
-      release = lsb_release_cache
-    else:
-      release = "".join(map(lambda x: x.lower(), sh.lsb_release("-irs").split()))
-      # Only need to check against the major release if RHEL or CentOS
-      for platform in ['centos', 'redhatenterpriseserver']:
-        if platform in release:
-          release = release.split('.')[0]
-          break
-      lsb_release_cache = release
+    release = get_os_version(release)
   for k, v in OS_MAPPING.iteritems():
     if re.search(k, release):
       return v
@@ -379,6 +382,8 @@ def download_cdh_components(toolchain_root, cdh_components, url_prefix):
 
     # Download the package if it doesn't exist
     file_name = "{0}-{1}.tar.gz".format(component.name, component.version)
+    if component.name == "kudu":
+      file_name = "{0}-{1}-{2}.tar.gz".format(component.name, component.version, get_os_version().replace(".", ''))
     if component.url is None:
       download_path = url_prefix + file_name
     else:
@@ -424,7 +429,7 @@ if __name__ == "__main__":
 
   # LLVM and Kudu are the largest packages. Sort them first so that
   # their download starts as soon as possible.
-  packages = map(Package, ["llvm", "kudu",
+  packages = map(Package, ["llvm",
       "avro", "binutils", "boost", "breakpad", "bzip2", "cctz", "cmake", "crcutil",
       "flatbuffers", "gcc", "gflags", "glog", "gperftools", "gtest", "libev", "libunwind",
       "lz4", "openldap", "openssl", "orc", "protobuf",
@@ -443,7 +448,7 @@ if __name__ == "__main__":
   cdh_host = os.environ.get("CDH_DOWNLOAD_HOST")
   cdh_build_number = os.environ.get("CDH_BUILD_NUMBER")
 
-  cdh_components = map(Package, ["hadoop", "hbase", "hive", "sentry"])
+  cdh_components = map(Package, ["hadoop", "hbase", "hive", "sentry", "kudu"])
   download_path_prefix= \
       "https://{0}/build/cdh_components/{1}/tarballs/".format(cdh_host,
                                                               cdh_build_number)
