@@ -340,7 +340,9 @@ class TestImpalaShell(ImpalaTestSuite):
     query = "set num_nodes=1; set mt_dop=1; set batch_size=1; \
              select sleep(10) from functional_parquet.alltypesagg"
     p = ImpalaShell('-q "{0}"'.format(query))
-    sleep(6)
+    iters=0
+    while "Query progress" not in p.shell_process.stderr.readline() and iters < 10:
+      iters += 1
     os.kill(p.pid(), signal.SIGINT)
     result = p.get_result()
 
