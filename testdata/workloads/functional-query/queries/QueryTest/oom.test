@@ -1,0 +1,9 @@
+====
+---- QUERY
+select *
+from
+  tpch.lineitem a cross join
+  tpch.lineitem b
+---- RESULTS
+0
+====
