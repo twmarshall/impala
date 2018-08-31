@@ -723,7 +723,6 @@ under the License.
                     <exclude>org.apache.hadoop:*</exclude>
                     <exclude>org.apache.hbase:*</exclude>
                     <exclude>org.apache.hive:*</exclude>
-                    <exclude>org.apache.kudu:*</exclude>
                     <exclude>org.apache.sentry:*</exclude>
                     <exclude>org.apache.parquet:*</exclude>
                   </excludes>
@@ -731,7 +730,6 @@ under the License.
                     <include>org.apache.hadoop:*:${hadoop.version}</include>
                     <include>org.apache.hbase:*:${hbase.version}</include>
                     <include>org.apache.hive:*:${hive.version}</include>
-                    <include>org.apache.kudu:*:${kudu.version}</include>
                     <include>org.apache.sentry:*:${sentry.version}</include>
                     <include>org.apache.parquet:*:${parquet.version}</include>
                   </includes>
