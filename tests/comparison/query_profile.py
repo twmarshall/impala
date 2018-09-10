@@ -77,7 +77,7 @@ class DefaultProfile(object):
     self._bounds = {
         'MAX_NESTED_QUERY_COUNT': (0, 2),
         'MAX_NESTED_EXPR_COUNT': (0, 2),
-        'SELECT_ITEM_COUNT': (1, 5),
+        'SELECT_ITEM_COUNT': (5, 10),
         'WITH_TABLE_COUNT': (1, 3),
         'TABLE_COUNT': (1, 2),
         'ANALYTIC_LEAD_LAG_OFFSET': (1, 100),
@@ -247,7 +247,7 @@ class DefaultProfile(object):
             'WINDOW': 0.5},   # will only be used if ORDER BY is chosen
         'MISC': {
             'INLINE_VIEW': 0.1,   # MAX_NESTED_QUERY_COUNT bounds take precedence
-            'SELECT_DISTINCT': 0.1,
+            'SELECT_DISTINCT': 0.5,
             'SCALAR_SUBQUERY': 0.1,
             'ONLY_USE_EQUALITY_JOIN_PREDICATES': 0.8,
             'ONLY_USE_AGGREGATES_IN_HAVING_CLAUSE': 0.7,
@@ -398,13 +398,16 @@ class DefaultProfile(object):
       return self._choose_from_weights(weights)
 
   def use_distinct(self):
-    return self._decide_from_probability('MISC', 'SELECT_DISTINCT')
+    #return self._decide_from_probability('MISC', 'SELECT_DISTINCT')
+    return True
 
   def use_distinct_in_func(self):
     return self._decide_from_probability('MISC', 'SELECT_DISTINCT')
+    #return True
 
   def use_group_by_clause(self):
-    return self._decide_from_probability('OPTIONAL_QUERY_CLAUSES', 'GROUP_BY')
+    #return self._decide_from_probability('OPTIONAL_QUERY_CLAUSES', 'GROUP_BY')
+    return False
 
   def use_having_clause(self):
     return self._decide_from_probability('OPTIONAL_QUERY_CLAUSES', 'HAVING')

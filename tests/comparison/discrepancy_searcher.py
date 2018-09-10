@@ -710,13 +710,14 @@ class QueryResultDiffSearcher(object):
         # INSERT/UPSERT on a pristine table.
         dml_table = self._concurrently_copy_table(dml_choice_src_table)
       statement = statement_generator.generate_statement(
-          self.common_tables, dml_table=dml_table)
+          self.common_tables, dml_table=dml_table, require_aggregate=True)
       if isinstance(statement, Query):
         # we can re-write statement execution here to possibly be a CREATE TABLE AS SELECT
         # or CREATE VIEW AS SELECT
         statement.execution = self.query_profile.get_query_execution()
       query_count += 1
-      LOG.info('Running query #%s', query_count)
+      sql_writer = SqlWriter.create(dialect=IMPALA)
+      LOG.info('asdfRunning query #%s: %s', query_count, sql_writer.write_query(statement))
       result = self.query_result_comparator.compare_query_results(statement)
       if result.query_resulted_in_data:
         queries_resulted_in_data_count += 1

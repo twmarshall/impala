@@ -176,7 +176,7 @@ class DbPopulator(object):
     table.storage_format = storage_format
     allowed_types = list(TYPES)
     # Avro doesn't support timestamps yet.
-    if table.storage_format == 'AVRO':
+    if table.storage_format == 'AVRO' and Timestamp in allowed_types:
       allowed_types.remove(Timestamp)
     # TODO: 'table.cols' returns a copy of all scalar cols, so 'table.cols.append()'
     #       doesn't actually modify the table's columns. 'table.cols' should be changed

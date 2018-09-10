@@ -195,6 +195,11 @@ class QueryGenerator(object):
       if group_by_items:
         query.group_by_clause = GroupByClause(group_by_items)
 
+    LOG.info("asdf generate_statement 5 (%s, %s, %s, %s)" % (
+      not select_clause.analytic_items,
+      not query.group_by_clause,
+      not select_clause.contains_approximate_types,
+      self.profile.use_distinct()))
     # Impala doesn't support DISTINCT with analytics or "SELECT DISTINCT" when
     # GROUP BY is used.
     if not select_clause.analytic_items \
@@ -299,7 +304,7 @@ class QueryGenerator(object):
     for i in range(len(column_categories)):
       item_category = self.profile._choose_from_weights(
           self.profile.weights('SELECT_ITEM_CATEGORY'))
-      if item_category in ('AGG', 'ANALYTIC'):
+      if item_category in ('AGG'):
         column_categories[i] = item_category
     agg_present = 'AGG' in column_categories
     # Assign BASIC to the remaining columns
@@ -310,7 +315,7 @@ class QueryGenerator(object):
         else:
           # If AGG column is present, BASIC can only be assigned to a column if it's not a
           # Float.
-          column_categories[i] = 'BASIC'
+          column_categories[i] = 'AGG'
 
     select_items = []
 

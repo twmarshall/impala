@@ -200,13 +200,9 @@ EXACT_TYPES = [
     BigInt,
     Boolean,
     Char,
-    Decimal,
-    Double,
-    Float,
     Int,
     SmallInt,
     String,
-    Timestamp,
     TinyInt,
     VarChar]
 JOINABLE_TYPES = (Char, Decimal, Int, Timestamp)
