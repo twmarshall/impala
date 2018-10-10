@@ -35,9 +35,12 @@ from _pytest.main import EXIT_NOTESTSCOLLECTED
 from _pytest.config import FILE_OR_DIR
 
 # We whitelist valid test directories. If a new test directory is added, update this.
-VALID_TEST_DIRS = ['failure', 'query_test', 'stress', 'unittests', 'aux_query_tests',
-                   'shell', 'hs2', 'catalog_service', 'metadata', 'data_errors',
-                   'statestore', 'infra', 'observability']
+VALID_TEST_DIRS = ['failure', 'query_test', 'stress', 'unittests', 'shell', 'hs2',
+                   'catalog_service', 'metadata', 'data_errors', 'statestore', 'infra',
+                   'observability', 'webserver']
+INVALID_TEST_DIRS = ['aux_parquet_data_load', 'test-hive-udfs', 'comparison', 'benchmark',
+                     'custom_cluster', 'util', 'experiments', 'verifiers', 'common',
+                     'performance', 'beeswax', 'aux_custom_cluster_tests', 'authorization']
 
 TEST_DIR = os.path.join(os.environ['IMPALA_HOME'], 'tests')
 RESULT_DIR = os.path.join(os.environ['IMPALA_EE_TEST_LOGS_DIR'], 'results')
@@ -201,7 +204,11 @@ def build_ignore_dir_arg_list(valid_dirs):
   code as though it contained tests, resulting in misleading warnings or failures.
   (There is a JIRA filed to restructure this: IMPALA-4417.)
   """
-  subdirs = [subdir for subdir in os.listdir(TEST_DIR) if os.path.isdir(subdir)]
+  subdirs = [subdir for subdir in os.listdir(TEST_DIR) \
+      if os.path.isdir(subdir) and not subdir.startswith(".")]
+  assert len(subdirs) == len(VALID_TEST_DIRS) + len(INVALID_TEST_DIRS), \
+      "Unexpected test dirs: %s vs %s" % \
+      (set(subdirs), set(VALID_TEST_DIRS) | set(INVALID_TEST_DIRS))
   ignored_dir_list = []
   for subdir in (set(subdirs) - set(valid_dirs)):
     ignored_dir_list += ['--ignore', subdir]
