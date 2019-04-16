@@ -63,13 +63,13 @@ Status InProcessImpalaServer::StartWithEphemeralPorts(const string& statestore_h
 InProcessImpalaServer::InProcessImpalaServer(const string& hostname, int backend_port,
     int krpc_port, int subscriber_port, int webserver_port, const string& statestore_host,
     int statestore_port)
-    : backend_port_(backend_port),
-      beeswax_port_(0),
-      hs2_port_(0),
-      impala_server_(NULL),
-      exec_env_(new ExecEnv(backend_port, krpc_port, subscriber_port,
-          webserver_port, statestore_host, statestore_port)) {
-}
+  : backend_port_(backend_port),
+    beeswax_port_(0),
+    hs2_port_(0),
+    hs2_http_port_(0),
+    impala_server_(NULL),
+    exec_env_(new ExecEnv(backend_port, krpc_port, subscriber_port, webserver_port,
+        statestore_host, statestore_port)) {}
 
 void InProcessImpalaServer::SetCatalogIsReady() {
   DCHECK(impala_server_ != NULL) << "Call Start*() first.";
@@ -80,10 +80,12 @@ Status InProcessImpalaServer::StartWithClientServers(int beeswax_port, int hs2_p
   RETURN_IF_ERROR(exec_env_->Init());
   beeswax_port_ = beeswax_port;
   hs2_port_ = hs2_port;
+  hs2_http_port_ = hs2_port + 1;
 
   impala_server_.reset(new ImpalaServer(exec_env_.get()));
   SetCatalogIsReady();
-  RETURN_IF_ERROR(impala_server_->Start(backend_port_, beeswax_port, hs2_port));
+  RETURN_IF_ERROR(
+      impala_server_->Start(backend_port_, beeswax_port, hs2_port, hs2_http_port_));
   exec_env_->scheduler()->UpdateLocalBackendAddrForBeTest();
 
   // This flag is read directly in several places to find the address of the local

@@ -58,10 +58,17 @@ public class ImpalaJdbcClient {
   // As of Hive 0.11 'noSasl' is case sensitive. See HIVE-4232 for more details.
   private final static String NOSASL_AUTH_SPEC = ";auth=noSasl";
 
-  // The default connection string connects to localhost at the default hs2_port without
-  // Sasl.
-  private final static String DEFAULT_CONNECTION_STRING =
-      "jdbc:hive2://localhost:21050/default";
+  // Connects with HTTP as the transport.
+  private final static String HTTP_TRANSPORT_SPEC = ";transportMode=http";
+
+  // HiveServer2 compatible ports on coordinator for BINARY and HTTP based transports.
+  private final static int HS2_BINARY_PORT = 21050;
+  private final static int HS2_HTTP_PORT = 28000;
+
+  // The default connection string template to connect to localhost on a given port
+  // number.
+  private final static String DEFAULT_CONNECTION_TEMPLATE =
+      "jdbc:hive2://localhost:%d/default";
 
   private final String driverName_;
   private final String connString_;
@@ -137,11 +144,19 @@ public class ImpalaJdbcClient {
   }
 
   public static ImpalaJdbcClient createClientUsingHiveJdbcDriver() {
-    return new ImpalaJdbcClient(
-        HIVE_SERVER2_DRIVER_NAME, DEFAULT_CONNECTION_STRING + NOSASL_AUTH_SPEC);
+    String connString =
+        String.format(DEFAULT_CONNECTION_TEMPLATE + NOSASL_AUTH_SPEC, HS2_BINARY_PORT);
+    return new ImpalaJdbcClient(HIVE_SERVER2_DRIVER_NAME, connString);
   }
 
   public static ImpalaJdbcClient createClientUsingHiveJdbcDriver(String connString) {
+    return new ImpalaJdbcClient(HIVE_SERVER2_DRIVER_NAME, connString);
+  }
+
+  public static ImpalaJdbcClient createHttpClientUsingHiveJdbcDriver() {
+    String connString = String.format(
+        DEFAULT_CONNECTION_TEMPLATE + NOSASL_AUTH_SPEC + HTTP_TRANSPORT_SPEC,
+        HS2_HTTP_PORT);
     return new ImpalaJdbcClient(HIVE_SERVER2_DRIVER_NAME, connString);
   }
 

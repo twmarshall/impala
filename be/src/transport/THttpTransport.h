@@ -58,6 +58,8 @@ public:
 
   virtual const std::string getOrigin();
 
+  boost::shared_ptr<TTransport> getUnderlyingTransport() { return transport_; }
+
 protected:
   boost::shared_ptr<TTransport> transport_;
   std::string origin_;
@@ -84,6 +86,9 @@ protected:
   void readHeaders();
   virtual void parseHeader(char* header) = 0;
   virtual bool parseStatusLine(char* status) = 0;
+  // Called each time we finish reading a set of headers. Allows subclasses to do
+  // verification, eg. of authorization, before proceeding.
+  virtual void headersDone() {}
 
   uint32_t readChunked();
   void readChunkedFooters();

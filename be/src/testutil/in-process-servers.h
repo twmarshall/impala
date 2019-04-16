@@ -86,6 +86,8 @@ class InProcessImpalaServer {
 
   uint32_t hs2_port_;
 
+  uint32_t hs2_http_port_;
+
   /// The ImpalaServer that handles client and backend requests.
   boost::shared_ptr<ImpalaServer> impala_server_;
 

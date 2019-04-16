@@ -47,9 +47,14 @@ import org.apache.impala.thrift.TQueryOptions;
 import org.apache.impala.util.Metrics;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
+import org.junit.runner.RunWith;
 import org.junit.Test;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
 /**
@@ -59,31 +64,32 @@ import com.google.common.collect.Lists;
  * getTableTypes, getColumnNames.
  *
  */
+@RunWith(Parameterized.class)
 public class JdbcTest {
-  private static Connection con_;
+  private String connectionType_;
+  private Connection con_;
 
   // Test-local list of test tables. These are cleaned up in @After.
   private final List<String> testTableNames_ = Lists.newArrayList();
 
-  @BeforeClass
-  public static void setUp() throws Exception {
-    con_ = createConnection();
+  public JdbcTest(String connectionType) { connectionType_ = connectionType; }
+
+  @Parameterized.Parameters
+  public static String[] createConnections() {
+    return new String[] {"binary", "http"};
   }
 
-  @AfterClass
-  public static void cleanUp() throws Exception {
-    con_.close();
-    assertTrue("Connection should be closed", con_.isClosed());
-
-    Exception expectedException = null;
-    try {
-      con_.createStatement();
-    } catch (Exception e) {
-      expectedException = e;
+  @Before
+  public void testSetUp() throws Exception {
+    ImpalaJdbcClient client;
+    if (connectionType_ == "binary") {
+      client = ImpalaJdbcClient.createClientUsingHiveJdbcDriver();
+    } else {
+      Preconditions.checkState(connectionType_ == "http");
+      client = ImpalaJdbcClient.createHttpClientUsingHiveJdbcDriver();
     }
-
-    assertNotNull("createStatement() on closed connection should throw exception",
-        expectedException);
+    client.connect();
+    con_ = client.getConnection();
   }
 
   private static Connection createConnection() throws Exception {
@@ -135,6 +141,19 @@ public class JdbcTest {
     for (String tableName: testTableNames_) {
       dropTestTable(tableName);
     }
+
+    con_.close();
+    assertTrue("Connection should be closed", con_.isClosed());
+
+    Exception expectedException = null;
+    try {
+      con_.createStatement();
+    } catch (Exception e) {
+      expectedException = e;
+    }
+
+    assertNotNull("createStatement() on closed connection should throw exception",
+        expectedException);
   }
 
   @Test

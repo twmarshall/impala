@@ -179,7 +179,8 @@ class ImpalaServer : public ImpalaServiceIf,
   /// ephemeral port in tests and to not start the service in a daemon. A port < 0
   /// always means to not start the service. The port values can be obtained after
   /// Start() by calling GetThriftBackendPort(), GetBeeswaxPort() or GetHS2Port().
-  Status Start(int32_t thrift_be_port, int32_t beeswax_port, int32_t hs2_port);
+  Status Start(int32_t thrift_be_port, int32_t beeswax_port, int32_t hs2_port,
+      int32_t hs2_http_port);
 
   /// Blocks until the server shuts down.
   void Join();
@@ -1220,6 +1221,7 @@ class ImpalaServer : public ImpalaServiceIf,
   /// explicitly.
   boost::scoped_ptr<ThriftServer> beeswax_server_;
   boost::scoped_ptr<ThriftServer> hs2_server_;
+  boost::scoped_ptr<ThriftServer> hs2_http_server_;
   boost::scoped_ptr<ThriftServer> thrift_be_server_;
 
   /// Flag that records if backend and/or client services have been started. The flag is
