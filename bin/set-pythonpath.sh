@@ -25,8 +25,9 @@
 export PYTHONPATH=${IMPALA_HOME}
 
 # Generated Thrift files are used by tests and other scripts.
-if [ -n "${USE_THRIFT11_GEN_PY:-}" ]; then
+if [ "${USE_THRIFT11_GEN_PY:-}" == "true" ]; then
   PYTHONPATH=${PYTHONPATH}:${IMPALA_HOME}/shell/build/thrift-11-gen/gen-py
+  THRIFT_HOME="${IMPALA_TOOLCHAIN}/thrift-${IMPALA_THRIFT11_VERSION}"
 else
   PYTHONPATH=${PYTHONPATH}:${IMPALA_HOME}/shell/gen-py
 fi
