@@ -80,7 +80,7 @@ export CDP_GBN=${GLOBAL_BUILD_NUMBER:-${CDP_GBN:-}}
 
 # The CDP_VERSION is used to query builddb. This will be different on different branches.
 # It is set by the set_snapshot_versions Jenkins job.
-export CDP_VERSION="7.0.2.0"
+export CDP_VERSION="7.1.1.0"
 # The file name to stash the GBN incorporates $CDP_VERSION to make distinctions between
 # releases.
 CDP_GBN_CONFIG="${IMPALA_HOME}/toolchain/cdp_components/cdp-gbn-${CDP_VERSION}.sh"
