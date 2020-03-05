@@ -137,7 +137,7 @@ ccache -z || true
 # in a Kubernetes pod with a CPU limit below the number of CPUs, so this may not
 # impact build time. Kudu compilation isn't seeing this, so restrict this to Impala
 # for now.
-IMPALA_BUILD_THREADS=$(($(nproc) * 3 / 4))
+IMPALA_BUILD_THREADS=${IMPALA_BUILD_THREADS:-(($(nproc) * 3 / 4))}
 echo "Set IMPALA_BUILD_THREADS to ${IMPALA_BUILD_THREADS}"
 
 # Log ccache accesses to help diagnose bad cache hit rates

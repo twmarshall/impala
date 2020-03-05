@@ -128,8 +128,8 @@ cd ${KUDU_HOME}
 # Set up build environment.
 init-compiler
 
-target_load=$(nproc)
-BUILD_THREADS=$(nproc)
+target_load=${BUILD_THREADS:-$(nproc)}
+BUILD_THREADS=${BUILD_THREADS:-$(nproc)}
 if [[ ${BUILD_THREADS} -lt 1 ]]; then
   BUILD_THREADS=1
 fi
