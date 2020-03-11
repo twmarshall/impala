@@ -51,6 +51,7 @@ if ! ${IS_STANDALONE_IMPALA_BUILD}; then
     export CDP_KUDU_JAVA_VERSION=REPLACED
     export CDP_RANGER_VERSION=REPLACED
     export CDP_TEZ_VERSION=REPLACED
+    export CDP_OZONE_VERSION=REPLACED
     # TODO: remove these IMPALA_KUDU_* once there is proper support of CDP Kudu
     export IMPALA_KUDU_VERSION=REPLACED
     export IMPALA_KUDU_JAVA_VERSION=REPLACED
@@ -135,6 +136,7 @@ get_cdp_version knox
 get_cdp_version kudu
 get_cdp_version ranger
 get_cdp_version tez
+get_cdp_version ozone
 
 [[ -n $CDP_HADOOP_VERSION ]]
 [[ -n $CDP_HBASE_VERSION ]]
@@ -143,6 +145,7 @@ get_cdp_version tez
 [[ -n $CDP_KUDU_VERSION ]]
 [[ -n $CDP_RANGER_VERSION ]]
 [[ -n $CDP_TEZ_VERSION ]]
+[[ -n $CDP_OZONE_VERSION ]]
 
 # Kudu Java version matches the Kudu version
 # Ugly hack: We don't want this to be replaced. Break it into two statements so it
