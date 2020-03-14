@@ -23,7 +23,7 @@ import org.apache.impala.thrift.TBoolLiteral;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
 
-import com.google.common.base.MoreObjects;
+import com.google.common.base.Objects;
 
 public class BoolLiteral extends LiteralExpr {
   private final boolean value_;
@@ -54,7 +54,7 @@ public class BoolLiteral extends LiteralExpr {
 
   @Override
   public String debugString() {
-    return MoreObjects.toStringHelper(this)
+    return Objects.toStringHelper(this)
         .add("value", value_)
         .toString();
   }

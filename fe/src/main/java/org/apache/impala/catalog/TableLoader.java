@@ -29,8 +29,6 @@ import com.google.common.base.Stopwatch;
 import org.apache.impala.catalog.MetaStoreClientPool.MetaStoreClient;
 import org.apache.impala.util.ThreadNameAnnotator;
 
-import static com.google.common.base.Stopwatch.createUnstarted;
-
 /**
  * Class that implements the logic for how a table's metadata should be loaded from
  * the Hive Metastore / HDFS / etc.
@@ -56,7 +54,7 @@ public class TableLoader {
    * an IncompleteTable will be returned that contains details on the error.
    */
   public Table load(Db db, String tblName, String reason) {
-    Stopwatch sw = createUnstarted().start();
+    Stopwatch sw = new Stopwatch().start();
     String fullTblName = db.getName() + "." + tblName;
     String annotation = "Loading metadata for: " + fullTblName + " (" + reason + ")";
     LOG.info(annotation);
@@ -66,7 +64,7 @@ public class TableLoader {
          MetaStoreClient msClient = catalog_.getMetaStoreClient()) {
       org.apache.hadoop.hive.metastore.api.Table msTbl = null;
       // All calls to getTable() need to be serialized due to HIVE-5457.
-      Stopwatch hmsLoadSW = createUnstarted().start();
+      Stopwatch hmsLoadSW = new Stopwatch().start();
       synchronized (metastoreAccessLock_) {
         msTbl = msClient.getHiveClient().getTable(db.getName(), tblName);
       }
@@ -103,7 +101,7 @@ public class TableLoader {
           "'invalidate metadata " + fullTblName + "' may resolve this problem.", e));
     }
     LOG.info("Loaded metadata for: " + fullTblName + " (" +
-        sw.elapsed(TimeUnit.MILLISECONDS) + "ms)");
+        sw.elapsedTime(TimeUnit.MILLISECONDS) + "ms)");
     return table;
   }
 }

@@ -20,7 +20,7 @@ package org.apache.impala.catalog;
 import org.apache.impala.thrift.TCatalogObject;
 import org.apache.impala.thrift.TCatalogObjectType;
 import org.apache.impala.thrift.TDataSource;
-import com.google.common.base.MoreObjects;
+import com.google.common.base.Objects;
 
 /**
  * Represents a data source in the catalog. Contains the data source name and all
@@ -65,7 +65,7 @@ public class DataSource extends CatalogObjectImpl implements FeDataSource {
   }
 
   public String debugString() {
-    return MoreObjects.toStringHelper(this)
+    return Objects.toStringHelper(this)
         .add("name", dataSrcName_)
         .add("location", location_)
         .add("className", className_)

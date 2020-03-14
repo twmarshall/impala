@@ -34,8 +34,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.base.Stopwatch;
 
-import static com.google.common.base.Stopwatch.createUnstarted;
-
 /**
  * Class which sets up a simple thread which runs in a loop sleeping
  * for a short interval of time. If the sleep takes significantly longer
@@ -186,8 +184,8 @@ public class JvmPauseMonitor {
   private class Monitor implements Runnable {
     @Override
     public void run() {
-      Stopwatch sw = createUnstarted();
-      Stopwatch timeSinceDeadlockCheck = createUnstarted().start();
+      Stopwatch sw = new Stopwatch();
+      Stopwatch timeSinceDeadlockCheck = new Stopwatch().start();
       Map<String, GcTimes> gcTimesBeforeSleep = getGcTimes();
       LOG.info("Starting JVM pause monitor");
       while (shouldRun) {
@@ -199,7 +197,7 @@ public class JvmPauseMonitor {
           return;
         }
         sw.stop();
-        long extraSleepTime = sw.elapsed(TimeUnit.MILLISECONDS) - SLEEP_INTERVAL_MS;
+        long extraSleepTime = sw.elapsedTime(TimeUnit.MILLISECONDS) - SLEEP_INTERVAL_MS;
         Map<String, GcTimes> gcTimesAfterSleep = getGcTimes();
 
         if (extraSleepTime > warnThresholdMs_) {

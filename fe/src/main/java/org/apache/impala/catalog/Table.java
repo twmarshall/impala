@@ -66,8 +66,6 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
-import static com.google.common.base.Stopwatch.createUnstarted;
-
 /**
  * Base class for table metadata.
  *
@@ -411,7 +409,7 @@ public abstract class Table extends CatalogObjectImpl implements FeTable {
    */
   protected void loadValidWriteIdList(IMetaStoreClient client)
       throws TableLoadingException {
-    Stopwatch sw = createUnstarted().start();
+    Stopwatch sw = new Stopwatch().start();
     Preconditions.checkState(msTable_ != null && msTable_.getParameters() != null);
     if (MetastoreShim.getMajorVersion() > 2 &&
         AcidUtils.isTransactionalTable(msTable_.getParameters())) {

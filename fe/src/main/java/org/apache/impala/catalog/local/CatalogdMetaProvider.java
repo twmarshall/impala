@@ -108,8 +108,6 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import com.google.errorprone.annotations.Immutable;
 import com.google.errorprone.annotations.concurrent.GuardedBy;
 
-import static com.google.common.base.Stopwatch.createUnstarted;
-
 /**
  * MetaProvider which fetches metadata in a granular fashion from the catalogd.
  *
@@ -377,7 +375,7 @@ public class CatalogdMetaProvider implements MetaProvider {
       throws TException {
     TGetPartialCatalogObjectResponse resp;
     byte[] ret = null;
-    Stopwatch sw = createUnstarted().start();
+    Stopwatch sw = new Stopwatch().start();
     try {
       ret = FeSupport.GetPartialCatalogObject(new TSerializer().serialize(req));
     } catch (InternalException e) {
@@ -484,7 +482,7 @@ public class CatalogdMetaProvider implements MetaProvider {
     // NOTE: we don't need to perform this dance for cache keys which embed a version
     // number, because invalidation is not handled by removing cache entries, but
     // rather by bumping top-level version numbers.
-    Stopwatch sw = createUnstarted().start();
+    Stopwatch sw = new Stopwatch().start();
     boolean hit = false;
     boolean isPiggybacked = false;
     try {
@@ -714,7 +712,7 @@ public class CatalogdMetaProvider implements MetaProvider {
   @Override
   public List<ColumnStatisticsObj> loadTableColumnStatistics(final TableMetaRef table,
       List<String> colNames) throws TException {
-    Stopwatch sw = createUnstarted().start();
+    Stopwatch sw = new Stopwatch().start();
     List<ColumnStatisticsObj> ret = Lists.newArrayListWithCapacity(colNames.size());
     // Look up in cache first, keeping track of which ones are missing.
     // We can't use 'loadWithCaching' since we need to fetch several entries batched
@@ -817,7 +815,7 @@ public class CatalogdMetaProvider implements MetaProvider {
       throws MetaException, TException {
     Preconditions.checkArgument(table instanceof TableMetaRefImpl);
     TableMetaRefImpl refImpl = (TableMetaRefImpl)table;
-    Stopwatch sw = createUnstarted().start();
+    Stopwatch sw = new Stopwatch().start();
     // Load what we can from the cache.
     Map<PartitionRef, PartitionMetadata> refToMeta = loadPartitionsFromCache(refImpl,
         hostIndex, partitionRefs);

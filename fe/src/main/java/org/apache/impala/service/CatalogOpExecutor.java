@@ -200,8 +200,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import static com.google.common.base.Stopwatch.createUnstarted;
-
 import org.slf4j.LoggerFactory;
 
 /**
@@ -1818,7 +1816,7 @@ public class CatalogOpExecutor {
       org.apache.hadoop.hive.metastore.api.Table msTbl = existingTbl.getMetaStoreTable();
       if (msTbl == null) {
         Preconditions.checkState(existingTbl instanceof IncompleteTable);
-        Stopwatch hmsLoadSW = createUnstarted().start();;
+        Stopwatch hmsLoadSW = new Stopwatch().start();
         long hmsLoadTime;
         try (MetaStoreClient msClient = catalog_.getMetaStoreClient()) {
           msTbl = msClient.getHiveClient().getTable(tableName.getDb(),
@@ -3969,7 +3967,7 @@ public class CatalogOpExecutor {
     Preconditions.checkNotNull(msClient);
     Db db = tbl.getDb();
     org.apache.hadoop.hive.metastore.api.Table msTbl = null;
-    Stopwatch hmsLoadSW = createUnstarted().start();
+    Stopwatch hmsLoadSW = new Stopwatch().start();
     long hmsLoadTime;
     try {
       msTbl = msClient.getHiveClient().getTable(db.getName(), tbl.getName());

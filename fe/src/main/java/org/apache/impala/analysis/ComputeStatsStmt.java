@@ -63,9 +63,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import static com.google.common.base.Stopwatch.createUnstarted;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-
 /**
  * Represents the following statements for statistics collection. Which statistics
  * are computed and stored depends on the statement type (incremental or not), the
@@ -651,7 +648,7 @@ public class ComputeStatsStmt extends StatementBase {
     Preconditions.checkNotNull(partitions);
     Preconditions.checkState(!RuntimeEnv.INSTANCE.isTestEnv());
     if (partitions.isEmpty()) return Collections.emptyMap();
-    Stopwatch sw = createUnstarted().start();
+    Stopwatch sw = new Stopwatch().start();
     int numCompressedBytes = 0;
     int totalPartitions = 0;
     int numPartitionsWithStats = 0;
@@ -711,7 +708,7 @@ public class ComputeStatsStmt extends StatementBase {
     profile.addToCounter(STATS_FETCH_TOTAL_PARTITIONS, TUnit.NONE, totalPartitions);
     profile.addToCounter(STATS_FETCH_NUM_PARTITIONS_WITH_STATS, TUnit.NONE,
         numPartitionsWithStats);
-    profile.addToCounter(STATS_FETCH_TIME, TUnit.TIME_MS, stopwatch.elapsed(MILLISECONDS));
+    profile.addToCounter(STATS_FETCH_TIME, TUnit.TIME_MS, stopwatch.elapsedMillis());
   }
 
   /**

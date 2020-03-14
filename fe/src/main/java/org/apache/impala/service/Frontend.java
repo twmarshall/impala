@@ -308,7 +308,7 @@ public class Frontend {
       Preconditions.checkState(numThreads > 0
         && numThreads <= MAX_CHECK_AUTHORIZATION_POOL_SIZE);
       if (numThreads == 1) {
-        checkAuthorizationPool_ = MoreExecutors.newDirectExecutorService();
+        checkAuthorizationPool_ = MoreExecutors.sameThreadExecutor();
       } else {
         LOG.info("Using a thread pool of size {} for authorization", numThreads);
         checkAuthorizationPool_ = Executors.newFixedThreadPool(numThreads);

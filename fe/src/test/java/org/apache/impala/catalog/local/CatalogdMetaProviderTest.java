@@ -57,8 +57,6 @@ import com.google.common.base.Stopwatch;
 import com.google.common.cache.CacheStats;
 import com.google.common.collect.ImmutableList;
 
-import static com.google.common.base.Stopwatch.createUnstarted;
-
 public class CatalogdMetaProviderTest {
 
   private final static Logger LOG = LoggerFactory.getLogger(
@@ -287,7 +285,7 @@ public class CatalogdMetaProviderTest {
     ExecutorService exec = Executors.newFixedThreadPool(kNumThreads);
     try {
       // Run for at least 60 seconds to try to provoke the desired behavior.
-      Stopwatch sw = createUnstarted().start();
+      Stopwatch sw = new Stopwatch().start();
       while (sw.elapsed(TimeUnit.SECONDS) < 60) {
         // Submit a wave of parallel tasks which all fetch the same table, concurently.
         // One of these should win whereas the others are likely to piggy-back on the
