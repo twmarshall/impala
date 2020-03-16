@@ -42,12 +42,8 @@ DEFINE_int32(krpc_port, 27000,
 
 // Kerberos is enabled if and only if principal is set.
 DEFINE_string(principal, "", "Kerberos principal. If set, both client and backend "
-    "network connections will use Kerberos encryption and authentication and the daemon "
-    "will acquire a Kerberos TGT (i.e. do the equivalent of the kinit command) and keep "
-    "it refreshed for the lifetime of the daemon.  If this is not set the TGT ticket "
-    "will not be acquired and incoming connections will not be authenticated or "
-    "encrypted using Kerberos. However, the TGT and other settings may be inherited from "
-    "the environment and used by client libraries in certain cases.");
+    "network connections will use Kerberos encryption and authentication. Kerberos will "
+    "not be used for internal or external connections if this is not set.");
 DEFINE_string(be_principal, "", "Kerberos principal for backend network connections only,"
     "overriding --principal if set. Must not be set if --principal is not set.");
 DEFINE_string(keytab_file, "", "Absolute path to Kerberos keytab file");
@@ -56,16 +52,6 @@ DEFINE_string(krb5_ccname, "/tmp/krb5cc_impala_internal", "Absolute path to the 
 DEFINE_string(krb5_conf, "", "Absolute path to Kerberos krb5.conf if in a non-standard "
     "location. Does not normally need to be set.");
 DEFINE_string(krb5_debug_file, "", "Turn on Kerberos debugging and output to this file");
-DEFINE_bool(skip_internal_kerberos_auth, false,
-    "(Advanced) skip kerberos authentication for incoming internal connections from "
-    "other daemons within the Impala cluster (i.e. impalads, statestored, catalogd). "
-    "Must be set to the same value across all daemons. Only has an effect if --principal "
-    "is set, i.e. Kerberos is enabled.");
-DEFINE_bool(skip_external_kerberos_auth, false,
-    "(Advanced) skip kerberos authentication for incoming external connections to "
-    "this daemon, e.g. clients connecting to the HS2 interface. Only has an effect "
-    "if --principal is set, i.e. Kerberos is enabled.");
-
 
 static const string mem_limit_help_msg = "Limit on process memory consumption. "
     "Includes the JVM's memory consumption only if --mem_limit_includes_jvm is true. "
