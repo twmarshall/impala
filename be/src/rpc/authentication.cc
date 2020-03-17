@@ -74,6 +74,8 @@ using namespace apache::thrift::transport;
 using namespace boost::filesystem;   // for is_regular(), is_absolute()
 using namespace strings;
 
+DECLARE_bool(skip_external_kerberos_auth);
+DECLARE_bool(skip_internal_kerberos_auth);
 DECLARE_string(keytab_file);
 DECLARE_string(principal);
 DECLARE_string(be_principal);
@@ -698,7 +700,7 @@ Status InitAuth(const string& appname) {
 
   // Other than the general callbacks, we only setup other SASL things as required.
   if (FLAGS_enable_ldap_auth || IsKerberosEnabled()) {
-    if (!FLAGS_principal.empty()) {
+    if (IsKerberosEnabled()) {
       // Callbacks for when we're a Kerberos Sasl internal connection.  Just do logging.
       KERB_INT_CALLBACKS.resize(3);
 
@@ -793,6 +795,7 @@ Status InitAuth(const string& appname) {
 // to debug.  We do this using direct stat() calls because boost doesn't support the
 // detail we need.
 Status CheckReplayCacheDirPermissions() {
+  DCHECK(IsKerberosEnabled());
   struct stat st;
 
   if (stat("/var/tmp", &st) < 0) {
@@ -812,13 +815,8 @@ Status CheckReplayCacheDirPermissions() {
   return Status::OK();
 }
 
-Status SecureAuthProvider::InitKerberos(
-    const string& principal, const string& keytab_file) {
+Status SecureAuthProvider::InitKerberos(const string& principal) {
   principal_ = principal;
-  keytab_file_ = keytab_file;
-  // The logic here is that needs_kinit_ is false unless we are the internal
-  // auth provider and we support kerberos.
-  needs_kinit_ = is_internal_;
 
   RETURN_IF_ERROR(ParseKerberosPrincipal(
       principal_, &service_name_, &hostname_, &realm_));
@@ -864,33 +862,43 @@ static Status EnvAppend(const string& attr, const string& thing, const string& t
 }
 
 Status AuthManager::InitKerberosEnv() {
-  DCHECK(!FLAGS_principal.empty());
-
-  RETURN_IF_ERROR(CheckReplayCacheDirPermissions());
-
-  if (!is_regular(FLAGS_keytab_file)) {
-    return Status(Substitute("Bad --keytab_file value: The file $0 is not a "
-        "regular file", FLAGS_keytab_file));
+  if (IsKerberosEnabled()) {
+    RETURN_IF_ERROR(CheckReplayCacheDirPermissions());
+    if (FLAGS_keytab_file.empty()) {
+      return Status("--keytab_file must be configured if kerberos is enabled");
+    }
+    if (FLAGS_krb5_ccname.empty()) {
+      return Status("--krb5_ccname must be configured if kerberos is enabled");
+    }
   }
 
-  // Set the keytab name in the environment so that Sasl Kerberos and kinit can
-  // find and use it.
-  if (setenv("KRB5_KTNAME", FLAGS_keytab_file.c_str(), 1)) {
-    return Status(Substitute("Kerberos could not set KRB5_KTNAME: $0",
-        GetStrErrMsg()));
+  if (!FLAGS_keytab_file.empty()) {
+    if (!is_regular(FLAGS_keytab_file)) {
+      return Status(Substitute("Bad --keytab_file value: The file $0 is not a "
+          "regular file", FLAGS_keytab_file));
+    }
+
+    // Set the keytab name in the environment so that Sasl Kerberos and kinit can
+    // find and use it.
+    if (setenv("KRB5_KTNAME", FLAGS_keytab_file.c_str(), 1)) {
+      return Status(Substitute("Kerberos could not set KRB5_KTNAME: $0",
+          GetStrErrMsg()));
+    }
   }
 
-  // We want to set a custom location for the impala credential cache.
-  // Usually, it's /tmp/krb5cc_xxx where xxx is the UID of the process.  This
-  // is normally fine, but if you're not running impala daemons as user
-  // 'impala', the kinit we perform is going to blow away credentials for the
-  // current user.  Not setting this isn't technically fatal, so ignore errors.
-  const path krb5_ccname_path(FLAGS_krb5_ccname);
-  if (!krb5_ccname_path.is_absolute()) {
-    return Status(Substitute("Bad --krb5_ccname value: $0 is not an absolute file path",
-        FLAGS_krb5_ccname));
+  if (!FLAGS_krb5_ccname.empty()) {
+    // We want to set a custom location for the impala credential cache.
+    // Usually, it's /tmp/krb5cc_xxx where xxx is the UID of the process.  This
+    // is normally fine, but if you're not running impala daemons as user
+    // 'impala', the kinit we perform is going to blow away credentials for the
+    // current user.  Not setting this isn't technically fatal, so ignore errors.
+    const path krb5_ccname_path(FLAGS_krb5_ccname);
+    if (!krb5_ccname_path.is_absolute()) {
+      return Status(Substitute("Bad --krb5_ccname value: $0 is not an absolute file path",
+          FLAGS_krb5_ccname));
+    }
+    discard_result(setenv("KRB5CCNAME", FLAGS_krb5_ccname.c_str(), 1));
   }
-  discard_result(setenv("KRB5CCNAME", FLAGS_krb5_ccname.c_str(), 1));
 
   // If an alternate krb5_conf location is supplied, set both KRB5_CONFIG and
   // JAVA_TOOL_OPTIONS in the environment.
@@ -918,13 +926,13 @@ Status AuthManager::InitKerberosEnv() {
   if (!FLAGS_krb5_debug_file.empty()) {
     bool krb5_debug_fail = false;
     if (setenv("KRB5_TRACE", FLAGS_krb5_debug_file.c_str(), 1) < 0) {
-      LOG(WARNING) << "Failed to set KRB5_TRACE; --krb5_debuf_file not enabled for "
-          "back-end code";
+      LOG(WARNING) << "Failed to set KRB5_TRACE; --krb5_debug_file not enabled for "
+                      "back-end code";
       krb5_debug_fail = true;
     }
     if (!EnvAppend("JAVA_TOOL_OPTIONS", "sun.security.krb5.debug", "true").ok()) {
-      LOG(WARNING) << "Failed to set JAVA_TOOL_OPTIONS; --krb5_debuf_file not enabled "
-          "for front-end code";
+      LOG(WARNING) << "Failed to set JAVA_TOOL_OPTIONS; --krb5_debug_file not enabled "
+                      "for front-end code";
       krb5_debug_fail = true;
     }
     if (!krb5_debug_fail) {
@@ -936,19 +944,6 @@ Status AuthManager::InitKerberosEnv() {
 }
 
 Status SecureAuthProvider::Start() {
-  // True for kerberos internal use
-  if (needs_kinit_) {
-    DCHECK(is_internal_);
-    DCHECK(!principal_.empty());
-    // IMPALA-8154: Disable any Kerberos auth_to_local mappings.
-    FLAGS_use_system_auth_to_local = false;
-    // Starts a thread that periodically does a 'kinit'. The thread lives as long as the
-    // process does.
-    KUDU_RETURN_IF_ERROR(kudu::security::InitKerberosForServer(principal_, keytab_file_,
-        FLAGS_krb5_ccname, false), "Could not init kerberos");
-    LOG(INFO) << "Kerberos ticket granted to " << principal_;
-  }
-
   if (has_ldap_) {
     DCHECK(!is_internal_);
     if (!FLAGS_ldap_ca_certificate.empty()) {
@@ -1225,20 +1220,7 @@ Status AuthManager::Init() {
         "is used in internal (back-end) communication.");
   }
 
-  // When acting as a client, or as a server on internal connections:
-  string kerberos_internal_principal;
-  // When acting as a server on external connections:
-  string kerberos_external_principal;
-
-  bool use_kerberos = IsKerberosEnabled();
-  if (use_kerberos) {
-    RETURN_IF_ERROR(GetInternalKerberosPrincipal(&kerberos_internal_principal));
-    RETURN_IF_ERROR(GetExternalKerberosPrincipal(&kerberos_external_principal));
-    DCHECK(!kerberos_internal_principal.empty());
-    DCHECK(!kerberos_external_principal.empty());
-
-    RETURN_IF_ERROR(InitKerberosEnv());
-  }
+  RETURN_IF_ERROR(InitKerberosEnv());
 
   // This is written from the perspective of the daemons - thus "internal"
   // means "I am used for communication with other daemons, both as a client
@@ -1246,37 +1228,53 @@ Status AuthManager::Init() {
   // for clients that are external - that is, they aren't daemons - like the
   // impala shell, odbc, jdbc, etc.
   //
+  // Note that Kerberos and LDAP are enabled when --principal and --enable_ldap_auth are
+  // set, respectively.
+  //
   // Flags     | Internal | External
   // --------- | -------- | --------
   // None      | NoAuth   | NoAuth
   // LDAP only | NoAuth   | Sasl(ldap)
   // Kerb only | Sasl(be) | Sasl(fe)
   // Both      | Sasl(be) | Sasl(fe+ldap)
-
+  //
+  // --skip_internal_kerberos_auth and --skip_external_kerberos_auth disable Kerberos
+  // auth for the Internal and External columns respectively.
+  //
   // Set up the internal auth provider as per above.  Since there's no LDAP on
   // the client side, this is just a check for the "back end" kerberos
   // principal.
-  if (use_kerberos) {
+  // When acting as a client, or as a server on internal connections:
+  string kerberos_internal_principal;
+  // When acting as a server on external connections:
+  string kerberos_external_principal;
+  if (IsKerberosEnabled()) {
+    RETURN_IF_ERROR(GetInternalKerberosPrincipal(&kerberos_internal_principal));
+    RETURN_IF_ERROR(GetExternalKerberosPrincipal(&kerberos_external_principal));
+    DCHECK(!kerberos_internal_principal.empty());
+    DCHECK(!kerberos_external_principal.empty());
+  }
+
+  if (IsInternalKerberosEnabled()) {
+    // Initialize the auth provider first, in case validation of the principal fails.
     SecureAuthProvider* sap = NULL;
     internal_auth_provider_.reset(sap = new SecureAuthProvider(true));
-    RETURN_IF_ERROR(sap->InitKerberos(kerberos_internal_principal,
-        FLAGS_keytab_file));
+    RETURN_IF_ERROR(sap->InitKerberos(kerberos_internal_principal));
     LOG(INFO) << "Internal communication is authenticated with Kerberos";
   } else {
     internal_auth_provider_.reset(new NoAuthProvider());
     LOG(INFO) << "Internal communication is not authenticated";
   }
-  RETURN_IF_ERROR(internal_auth_provider_->Start());
 
+  bool external_kerberos_enabled = IsExternalKerberosEnabled();
   // Set up the external auth provider as per above.  Either a "front end"
   // principal or ldap tells us to use a SecureAuthProvider, and we fill in
   // details from there.
-  if (use_ldap || use_kerberos) {
+  if (use_ldap || external_kerberos_enabled) {
     SecureAuthProvider* sap = NULL;
     external_auth_provider_.reset(sap = new SecureAuthProvider(false));
-    if (use_kerberos) {
-      RETURN_IF_ERROR(sap->InitKerberos(kerberos_external_principal,
-          FLAGS_keytab_file));
+    if (external_kerberos_enabled) {
+      RETURN_IF_ERROR(sap->InitKerberos(kerberos_external_principal));
       LOG(INFO) << "External communication is authenticated with Kerberos";
     }
     if (use_ldap) {
@@ -1287,8 +1285,27 @@ Status AuthManager::Init() {
     external_auth_provider_.reset(new NoAuthProvider());
     LOG(INFO) << "External communication is not authenticated";
   }
-  RETURN_IF_ERROR(external_auth_provider_->Start());
 
+  // Acquire a kerberos ticket and start the background renewal thread before starting
+  // the auth providers. Do this after the InitKerberos() calls above which validate the
+  // principal format so that we don't try to do anything before the flags have been
+  // validated.
+  if (IsKerberosEnabled()) {
+    // IMPALA-8154: Disable any Kerberos auth_to_local mappings.
+    FLAGS_use_system_auth_to_local = false;
+    // Starts a thread that periodically does a 'kinit'. The thread lives as long as the
+    // process does. We only need to kinit as the internal principal, because that is the
+    // identity we will use for authentication with both other Impala services (impalad,
+    // statestore, catalogd) and other services lower in the stack (HMS, HDFS, Kudu, etc).
+    // We do not need a TGT for the external principal because we do not create any
+    // connections using that principal.
+    KUDU_RETURN_IF_ERROR(kudu::security::InitKerberosForServer(
+        kerberos_internal_principal, FLAGS_keytab_file,
+        FLAGS_krb5_ccname, false), "Could not init kerberos");
+    LOG(INFO) << "Kerberos ticket granted to " << kerberos_internal_principal;
+  }
+  RETURN_IF_ERROR(internal_auth_provider_->Start());
+  RETURN_IF_ERROR(external_auth_provider_->Start());
   return Status::OK();
 }
 
