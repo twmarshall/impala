@@ -75,4 +75,7 @@ if [ "${USE_KERBEROS}" == "true" ]; then
   EXTRA_ARGS+=(-skip_internal_kerberos_auth=true -skip_external_kerberos_auth=true)
 fi
 
+# Set ulimit core file size 0.
+ulimit -c 0
+
 exec "$@" "${EXTRA_ARGS[@]}"
