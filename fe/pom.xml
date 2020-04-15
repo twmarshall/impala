@@ -179,13 +179,6 @@ under the License.
         </exclusion>
       </exclusions>
     </dependency>
-
-    <dependency>
-      <groupId>org.apache.ranger</groupId>
-      <artifactId>ranger-raz-hook-abfs</artifactId>
-      <version>${ranger.version}</version>
-    </dependency>
-
     <!-- this is needed by ranger-plugins-audit -->
     <dependency>
       <groupId>javax.mail</groupId>
