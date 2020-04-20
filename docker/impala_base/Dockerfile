@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-FROM registry.access.redhat.com/ubi7:latest
+ARG BASE_IMAGE=registry.access.redhat.com/ubi7:latest
+FROM ${BASE_IMAGE}
 
 # Install minimal dependencies required for Impala services to run.
 RUN yum install -y --disableplugin=subscription-manager \
