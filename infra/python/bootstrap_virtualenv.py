@@ -49,6 +49,8 @@ import urllib
 
 LOG = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 
+SKIP_TOOLCHAIN_BOOTSTRAP = "SKIP_TOOLCHAIN_BOOTSTRAP"
+
 DEPS_DIR = os.path.join(os.path.dirname(__file__), "deps")
 ENV_DIR = os.path.join(os.path.dirname(__file__), "env")
 
