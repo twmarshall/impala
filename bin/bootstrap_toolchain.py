@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env impala-python
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -58,12 +58,18 @@
 #
 # The script is directly executable, and it takes no parameters:
 #     ./bootstrap_toolchain.py
+# It should NOT be run via 'python bootstrap_toolchain.py', as it relies on a specific
+# python environment.
 import logging
 import glob
 import multiprocessing.pool
 import os
 import random
 import re
+# TODO: This file should be runnable without using impala-python, and system python
+# does not have 'sh' available. Rework code to avoid importing sh (and anything else
+# that gets in the way).
+import sh
 import shutil
 import subprocess
 import sys
@@ -101,26 +107,6 @@ OS_MAPPING = [
 ]
 
 
-def check_output(cmd_args):
-  """Run the command and return the output. Raise an exception if the command returns
-     a non-zero return code. Similar to subprocess.check_output() which is only provided
-     in python 2.7.
-  """
-  process = subprocess.Popen(cmd_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-  stdout, _ = process.communicate()
-  if process.wait() != 0:
-    raise Exception("Command with args '%s' failed with exit code %s:\n%s"
-        % (cmd_args, process.returncode, stdout))
-  return stdout
-
-
-def get_toolchain_compiler():
-  """Return the <name>-<version> string for the compiler package to use for the
-  toolchain."""
-  # Currently we always use GCC.
-  return "gcc-{0}".format(os.environ["IMPALA_GCC_VERSION"])
-
-
 def wget_and_unpack_package(download_path, file_name, destination, wget_no_clobber):
   if not download_path.endswith("/" + file_name):
     raise Exception("URL {0} does not match with expected file_name {1}"
@@ -131,10 +117,7 @@ def wget_and_unpack_package(download_path, file_name, destination, wget_no_clobb
       download_path, destination, file_name, attempt))
     # --no-clobber avoids downloading the file if a file with the name already exists
     try:
-      cmd = ["wget", download_path, "--directory-prefix={0}".format(destination)]
-      if wget_no_clobber:
-        cmd.append("--no-clobber")
-      check_output(cmd)
+      sh.wget(download_path, directory_prefix=destination, no_clobber=wget_no_clobber)
       break
     except Exception, e:
       if attempt == NUM_ATTEMPTS:
@@ -142,9 +125,8 @@ def wget_and_unpack_package(download_path, file_name, destination, wget_no_clobb
       logging.error("Download failed; retrying after sleep: " + str(e))
       time.sleep(10 + random.random() * 5)  # Sleep between 10 and 15 seconds.
   logging.info("Extracting {0}".format(file_name))
-  check_output(["tar", "xzf", os.path.join(destination, file_name),
-                "--directory={0}".format(destination)])
-  os.unlink(os.path.join(destination, file_name))
+  sh.tar(z=True, x=True, f=os.path.join(destination, file_name), directory=destination)
+  sh.rm(os.path.join(destination, file_name))
 
 
 class DownloadUnpackTarball(object):
@@ -259,7 +241,7 @@ class ToolchainPackage(EnvVersionedPackage):
       logging.error("Impala environment not set up correctly, make sure "
           "$IMPALA_TOOLCHAIN is set.")
       sys.exit(1)
-    compiler = get_toolchain_compiler()
+    compiler = "gcc-{0}".format(os.environ["IMPALA_GCC_VERSION"])
     label = get_platform_release_label(release=platform_release).toolchain
     toolchain_build_id = os.environ["IMPALA_TOOLCHAIN_BUILD_ID"]
     toolchain_host = os.environ["IMPALA_TOOLCHAIN_HOST"]
@@ -427,8 +409,7 @@ def get_platform_release_label(release=None):
     if lsb_release_cache:
       release = lsb_release_cache
     else:
-      lsb_release = check_output(["lsb_release", "-irs"])
-      release = "".join(map(lambda x: x.lower(), lsb_release.split()))
+      release = "".join(map(lambda x: x.lower(), sh.lsb_release("-irs").split()))
       # Only need to check against the major release if RHEL or CentOS
       for platform in ['centos', 'redhatenterpriseserver']:
         if platform in release:
@@ -438,6 +419,7 @@ def get_platform_release_label(release=None):
   for mapping in OS_MAPPING:
     if re.search(mapping.lsb_release, release):
       return mapping
+
   raise Exception("Could not find package label for OS version: {0}.".format(release))
 
 
