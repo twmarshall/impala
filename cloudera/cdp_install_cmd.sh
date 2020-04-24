@@ -49,6 +49,10 @@ function unpack_into_directory {
   tar -zxf ${TARBALL} --strip-components=1 -C ${OUTPUT_DIR}
 }
 
+# Export ATLAS_HOOK_DIR_OVERRIDE before sourcing bin/impala-config.sh to set up
+# ATLAS_HOOK_DIR in the CDP build.
+export ATLAS_HOOK_DIR_OVERRIDE="${SOURCE_ROOT}/atlas"
+
 # Sourcing bin/impala-config.sh gets us all the versions (set by the text-replace section
 # in CDPD/components.ini).
 . ${IMPALA_HOME}/bin/impala-config.sh
@@ -58,13 +62,16 @@ HIVE_SOURCE_TARBALL="${TMP_PACKAGES_DIR}/hive-${IMPALA_HIVE_VERSION}-source.tar.
 HADOOP_BINARY_TARBALL="${TMP_PACKAGES_DIR}/hadoop-${IMPALA_HADOOP_VERSION}.tar.gz"
 KUDU_SOURCE_TARBALL="${TMP_PACKAGES_DIR}/kudu-${IMPALA_KUDU_VERSION}-source.tar.gz"
 KUDU_BINARY_TARBALL="${TMP_PACKAGES_DIR}/kudu-${IMPALA_KUDU_VERSION}.tar.gz"
+ATLAS_HOOK_TARBALL="${TMP_PACKAGES_DIR}/apache-atlas-${IMPALA_ATLAS_VERSION}-impala-hook.tar.gz"
 if [[ ! -f "${HIVE_SOURCE_TARBALL}" || ! -f "${HADOOP_BINARY_TARBALL}" ||
-      ! -f "${KUDU_SOURCE_TARBALL}" || ! -f "${KUDU_BINARY_TARBALL}" ]]; then
+      ! -f "${KUDU_SOURCE_TARBALL}" || ! -f "${KUDU_BINARY_TARBALL}" ||
+      ! -f "${ATLAS_HOOK_TARBALL}" ]]; then
     echo "Expecting the following files:"
     echo "${HIVE_SOURCE_TARBALL}"
     echo "${HADOOP_BINARY_TARBALL}"
     echo "${KUDU_SOURCE_TARBALL}"
     echo "${KUDU_BINARY_TARBALL}"
+    echo "${ATLAS_HOOK_TARBALL}"
     echo "Found:"
     ls -l "${TMP_PACKAGES_DIR}"
     exit 1
@@ -121,9 +128,10 @@ export KUDU_BUILD_DIR="/"
 # Step 2: Unpack Hive, Hadoop dependency tarballs. These are used to satisfy Impala's
 #         backend C++/thrift dependencies
 echo "### Unpacking Hive, Hadoop dependency tarballs ###"
-mkdir ${SOURCE_ROOT}/hive ${SOURCE_ROOT}/hadoop
+mkdir ${SOURCE_ROOT}/hive ${SOURCE_ROOT}/hadoop ${SOURCE_ROOT}/atlas
 unpack_into_directory "$HIVE_SOURCE_TARBALL" ${SOURCE_ROOT}/hive
 unpack_into_directory "$HADOOP_BINARY_TARBALL" ${SOURCE_ROOT}/hadoop
+unpack_into_directory "$ATLAS_HOOK_TARBALL" ${SOURCE_ROOT}/atlas
 export HIVE_SRC_DIR_OVERRIDE="${SOURCE_ROOT}/hive"
 export HADOOP_INCLUDE_DIR_OVERRIDE="${SOURCE_ROOT}/hadoop/include"
 export HADOOP_LIB_DIR_OVERRIDE="${SOURCE_ROOT}/hadoop/lib"

@@ -23,9 +23,6 @@
 # Use CDPD Hive
 export USE_CDP_HIVE=true
 
-# CDP ATLAS URL
-export CDP_ATLAS_REPO=https://native-toolchain.s3.amazonaws.com/build/cdp_components/$CDP_ATLAS_BUILD_NUMBER/tarballs/apache-atlas-$CDP_ATLAS_VERSION-impala-hook.tar.gz
-
 # How Impala gets its versions depends on how it is building. If someone checks out
 # an Impala branch and builds, this is a "standalone" build and versions come from a
 # CDP GBN. We assume this is a standalone build unless the IS_STANDALONE_IMPALA_BUILD
@@ -52,6 +49,7 @@ if ! ${IS_STANDALONE_IMPALA_BUILD}; then
     export CDP_RANGER_VERSION=2.0.0.7.2.0.0-SNAPSHOT
     export CDP_TEZ_VERSION=0.9.1.7.2.0.0-SNAPSHOT
     export CDP_OZONE_VERSION=0.6.0.7.2.0.0-SNAPSHOT
+    export CDP_ATLAS_VERSION=2.0.0.7.2.0.0-SNAPSHOT
     # TODO: remove these IMPALA_KUDU_* once there is proper support of CDP Kudu
     export IMPALA_KUDU_VERSION=1.12.0.7.2.0.0-SNAPSHOT
     export IMPALA_KUDU_JAVA_VERSION=1.12.0.7.2.0.0-SNAPSHOT
@@ -137,6 +135,7 @@ get_cdp_version kudu
 get_cdp_version ranger
 get_cdp_version tez
 get_cdp_version ozone
+get_cdp_version atlas
 
 [[ -n $CDP_HADOOP_VERSION ]]
 [[ -n $CDP_HBASE_VERSION ]]
@@ -146,6 +145,7 @@ get_cdp_version ozone
 [[ -n $CDP_RANGER_VERSION ]]
 [[ -n $CDP_TEZ_VERSION ]]
 [[ -n $CDP_OZONE_VERSION ]]
+[[ -n $CDP_ATLAS_VERSION ]]
 
 # Kudu Java version matches the Kudu version
 # Ugly hack: We don't want this to be replaced. Break it into two statements so it
@@ -154,6 +154,9 @@ CDP_KUDU_JAVA_VERSION=${CDP_KUDU_VERSION}
 export CDP_KUDU_JAVA_VERSION
 
 # Compute the URLs for the minicluster tarballs
+# ${version} in CDP_<PACKAGE>_URL will be replaced by __compute_version() in
+# bin/bootstrap_toolchain.py with the version retrieved from the environment variable
+# IMPALA_<PACKAGE>_VERSION set up in bin/impala-config.sh.
 export CDP_HADOOP_URL=${BUILD_REPO_BASE}/hadoop/hadoop-'${version}'.tar.gz
 export CDP_HBASE_URL=${BUILD_REPO_BASE}/hbase/hbase-'${version}'-bin.tar.gz
 export CDP_HIVE_URL=${BUILD_REPO_BASE}/hive/apache-hive-'${version}'-bin.tar.gz
@@ -162,3 +165,4 @@ export CDP_KUDU_URL=${BUILD_REPO_BASE}/impala/kudu-for-impala-'${version}'.tar.g
 export CDP_KUDU_JARS_URL=${BUILD_REPO_BASE}/impala/kudu-jars-'${version}'.tar.gz
 export CDP_TEZ_URL=${BUILD_REPO_BASE}/tez/tez-'${version}'-minimal.tar.gz
 export CDP_RANGER_URL=${BUILD_REPO_BASE}/ranger/ranger-'${version}'-admin.tar.gz
+export CDP_ATLAS_URL=${BUILD_REPO_BASE}/atlas/apache-atlas-'${version}'-impala-hook.tar.gz

@@ -631,6 +631,11 @@ def get_hadoop_downloads():
   # Ranger is always CDP
   cluster_components.append(CdpComponent("ranger",
                                          archive_basename_tmpl="ranger-${version}-admin"))
+  # Atlas hook is always CDP
+  cluster_components\
+    .append(CdpComponent("atlas",
+                         archive_basename_tmpl="apache-atlas-${version}-impala-hook",
+                         unpack_directory_tmpl="apache-atlas-impala-hook-${version}"))
   return cluster_components
 
 

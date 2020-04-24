@@ -186,14 +186,13 @@ export CDP_RANGER_VERSION=2.0.0.7.1.1.0-380
 export CDP_TEZ_VERSION=0.9.1.7.1.1.0-380
 export CDP_KNOX_VERSION=1.3.0.7.1.1.0-380
 export CDP_OZONE_VERSION=0.4.0.7.1.1.0-380
+export CDP_ATLAS_VERSION=2.0.0.7.1.1.0-380
 
 export IMPALA_PARQUET_VERSION=1.10.99-cdh6.x-SNAPSHOT
 export IMPALA_AVRO_JAVA_VERSION=1.8.2-cdh6.x-SNAPSHOT
 export IMPALA_HUDI_VERSION=0.5.0-incubating
 export IMPALA_KITE_VERSION=1.0.0-cdh6.x-SNAPSHOT
 export IMPALA_KUDU_JAVA_VERSION=1.11.0-cdh6.x-SNAPSHOT
-export CDP_ATLAS_VERSION=2.0.0.7.1.1.0-396
-export CDP_ATLAS_BUILD_NUMBER=2565408
 export IMPALA_ORC_JAVA_VERSION=1.6.2
 
 # When IMPALA_(CDH_COMPONENT)_URL are overridden, they may contain '$(platform_label)'
@@ -230,6 +229,7 @@ export CDP_HADOOP_URL=${CDP_HADOOP_URL-}
 export CDP_HBASE_URL=${CDP_HBASE_URL-}
 export CDP_TEZ_URL=${CDP_TEZ_URL-}
 export CDP_RANGER_URL=${CDP_RANGER_URL-}
+export CDP_ATLAS_URL=${CDP_ATLAS_URL-}
 
 export CDH_COMPONENTS_HOME="$IMPALA_TOOLCHAIN/cdh_components-$CDH_BUILD_NUMBER"
 export CDP_COMPONENTS_HOME="$IMPALA_TOOLCHAIN/cdp_components-$CDP_BUILD_NUMBER"
@@ -269,6 +269,10 @@ export IMPALA_OZONE_VERSION=${CDP_OZONE_VERSION}
 # Ranger always uses the CDP version
 export IMPALA_RANGER_VERSION=${CDP_RANGER_VERSION}
 export IMPALA_RANGER_URL=${CDP_RANGER_URL-}
+
+# Atlas hook always uses the CDP version
+export IMPALA_ATLAS_VERSION=${CDP_ATLAS_VERSION}
+export IMPALA_ATLAS_URL=${CDP_ATLAS_URL-}
 
 # Sentry always uses the CDH version
 export IMPALA_SENTRY_VERSION=${CDH_SENTRY_VERSION}
@@ -382,6 +386,8 @@ ${IMPALA_HIVE_VERSION}"}
   export HIVE_METASTORE_THRIFT_DIR=$HIVE_SRC_DIR/standalone-metastore/src/main/thrift
   export TEZ_HOME="$CDP_COMPONENTS_HOME/tez-${IMPALA_TEZ_VERSION}-minimal"
   export HBASE_HOME="$CDP_COMPONENTS_HOME/hbase-${IMPALA_HBASE_VERSION}/"
+  # ATLAS_HOOK_DIR_OVERRIDE is set only if we are in the CDP build.
+  export ATLAS_HOOK_DIR=${ATLAS_HOOK_DIR_OVERRIDE:-"$CDP_COMPONENTS_HOME/apache-atlas-impala-hook-${IMPALA_ATLAS_VERSION}"}
   # It is likely that devs will want to work with both the versions of metastore
   # if cdp hive is being used change the metastore db name, so we don't have to
   # format the metastore db everytime we switch between hive versions
@@ -817,6 +823,7 @@ echo "SENTRY_HOME             = $SENTRY_HOME"
 echo "SENTRY_CONF_DIR         = $SENTRY_CONF_DIR"
 echo "RANGER_HOME             = $RANGER_HOME"
 echo "RANGER_CONF_DIR         = $RANGER_CONF_DIR "
+echo "ATLAS_HOOK_DIR          = $ATLAS_HOOK_DIR"
 echo "THRIFT_HOME             = $THRIFT_HOME"
 echo "HADOOP_LZO              = $HADOOP_LZO"
 echo "IMPALA_LZO              = $IMPALA_LZO"
@@ -843,6 +850,7 @@ echo "IMPALA_SENTRY_VERSION   = $IMPALA_SENTRY_VERSION"
 echo "IMPALA_KUDU_VERSION     = $IMPALA_KUDU_VERSION"
 echo "IMPALA_KUDU_JAVA_VERSION= $IMPALA_KUDU_JAVA_VERSION"
 echo "IMPALA_RANGER_VERSION   = $IMPALA_RANGER_VERSION"
+echo "IMPALA_ATLAS_VERSION    = $IMPALA_ATLAS_VERSION"
 
 # Kerberos things.  If the cluster exists and is kerberized, source
 # the required environment.  This is required for any hadoop tool to
