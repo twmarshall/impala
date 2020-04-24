@@ -205,10 +205,17 @@ under the License.
     </dependency>
 
     <dependency>
+      <groupId>org.apache.impala</groupId>
+      <artifactId>yarn-extras</artifactId>
+      <version>${yarn-extras.version}</version>
+    </dependency>
+
+    <dependency>
       <groupId>org.apache.sentry</groupId>
       <artifactId>sentry-core-common</artifactId>
       <version>${sentry.version}</version>
       <exclusions>
+        <!-- https://issues.apache.org/jira/browse/IMPALA-9649 -->
         <exclusion>
           <groupId>org.apache.shiro</groupId>
           <artifactId>shiro-crypto-cipher</artifactId>
@@ -218,12 +225,6 @@ under the License.
           <artifactId>shiro-core</artifactId>
         </exclusion>
       </exclusions>
-    </dependency>
-
-    <dependency>
-      <groupId>org.apache.impala</groupId>
-      <artifactId>yarn-extras</artifactId>
-      <version>${yarn-extras.version}</version>
     </dependency>
 
     <dependency>
@@ -250,6 +251,16 @@ under the License.
       <artifactId>sentry-provider-db</artifactId>
       <version>${sentry.version}</version>
       <exclusions>
+        <!-- https://issues.apache.org/jira/browse/IMPALA-9649 -->
+        <exclusion>
+          <groupId>org.apache.shiro</groupId>
+          <artifactId>shiro-crypto-cipher</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.apache.shiro</groupId>
+          <artifactId>shiro-core</artifactId>
+        </exclusion>
+
         <!-- https://issues.apache.org/jira/browse/HADOOP-14903 -->
         <exclusion>
           <groupId>net.minidev</groupId>
@@ -282,6 +293,17 @@ under the License.
       <groupId>org.apache.sentry</groupId>
       <artifactId>sentry-provider-file</artifactId>
       <version>${sentry.version}</version>
+      <exclusions>
+        <!-- https://issues.apache.org/jira/browse/IMPALA-9649 -->
+        <exclusion>
+          <groupId>org.apache.shiro</groupId>
+          <artifactId>shiro-crypto-cipher</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.apache.shiro</groupId>
+          <artifactId>shiro-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <dependency>
@@ -289,6 +311,16 @@ under the License.
       <artifactId>sentry-provider-cache</artifactId>
       <version>${sentry.version}</version>
       <exclusions>
+        <!-- https://issues.apache.org/jira/browse/IMPALA-9649 -->
+        <exclusion>
+          <groupId>org.apache.shiro</groupId>
+          <artifactId>shiro-crypto-cipher</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.apache.shiro</groupId>
+          <artifactId>shiro-core</artifactId>
+        </exclusion>
+
         <!-- https://issues.apache.org/jira/browse/HADOOP-14903 -->
         <exclusion>
           <groupId>net.minidev</groupId>
@@ -362,7 +394,7 @@ under the License.
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-common</artifactId>
         </exclusion>
-       <exclusion>
+        <exclusion>
           <groupId>org.apache.hive</groupId>
           <artifactId>*</artifactId>
         </exclusion>
@@ -771,6 +803,9 @@ under the License.
                     <exclude>org.fusesource.leveldbjni:*</exclude>
                     <!-- IMPALA-9647 (re: CVE-2014-3577, CVE-2015-5262) -->
                     <exclude>org.apache.httpcomponents:fluent-hc</exclude>
+                    <!-- IMPALA-9649 (Avoid pulling in shiro* due to CVE's) -->
+                    <exclude>org.apache.shiro:shiro-core:*</exclude>
+                    <exclude>org.apache.shiro:shiro-crypto-cipher:*</exclude>
                     <!-- Assert that we only use artifacts from only the specified
                          version of these components. -->
                     <exclude>org.apache.hadoop:*</exclude>
@@ -1393,6 +1428,7 @@ under the License.
         <artifactId>javax.el</artifactId>
         <version>3.0.1-b08</version>
       </dependency>
+
     </dependencies>
   </dependencyManagement>
 </project>
