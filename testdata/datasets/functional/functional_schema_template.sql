@@ -2249,16 +2249,6 @@ TBLPROPERTIES('transactional'='true');
 ---- DATASET
 functional
 ---- BASE_TABLE_NAME
-materialized_view
----- HIVE_MAJOR_VERSION
-3
----- CREATE_HIVE
-CREATE MATERIALIZED VIEW IF NOT EXISTS {db_name}{db_suffix}.{table_name}
-  AS SELECT * FROM {db_name}{db_suffix}.insert_only_transactional_table;
-====
----- DATASET
-functional
----- BASE_TABLE_NAME
 insert_only_transactional_bucketed_table
 ---- HIVE_MAJOR_VERSION
 3
@@ -2804,4 +2794,14 @@ CREATE TABLE IF NOT EXISTS {db_name}{db_suffix}.{table_name}
 LIKE PARQUET '/test-warehouse/hudi_parquet/year=2015/month=03/day=16/5f541af5-ca07-4329-ad8c-40fa9b353f35-0_2-103-391_20200210090618.parquet'
 STORED AS PARQUET
 LOCATION '/test-warehouse/hudi_parquet';
+====
+---- DATASET
+functional
+---- BASE_TABLE_NAME
+materialized_view
+---- HIVE_MAJOR_VERSION
+3
+---- CREATE_HIVE
+CREATE MATERIALIZED VIEW IF NOT EXISTS {db_name}{db_suffix}.{table_name}
+  AS SELECT * FROM {db_name}{db_suffix}.insert_only_transactional_table;
 ====
