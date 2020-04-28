@@ -68,6 +68,11 @@ under the License.
           <groupId>org.fusesource.leveldbjni</groupId>
           <artifactId>*</artifactId>
         </exclusion>
+        <exclusion>
+          <!-- IMPALA-9468: Avoid pulling in netty for security reasons -->
+          <groupId>io.netty</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
       </exclusions>
     </dependency>
     <dependency>
@@ -89,9 +94,13 @@ under the License.
           <groupId>org.eclipse.jetty</groupId>
           <artifactId>*</artifactId>
         </exclusion>
+        <exclusion>
+          <!-- IMPALA-9468: Avoid pulling in netty for security reasons -->
+          <groupId>io.netty</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
       </exclusions>
     </dependency>
-
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-auth</artifactId>
@@ -806,6 +815,8 @@ under the License.
                     <!-- IMPALA-9649 (Avoid pulling in shiro* due to CVE's) -->
                     <exclude>org.apache.shiro:shiro-core:*</exclude>
                     <exclude>org.apache.shiro:shiro-crypto-cipher:*</exclude>
+                    <!-- IMPALA-9648: Ensure that netty-all is not present. -->
+                    <exclude>io.netty:*</exclude>
                     <!-- Assert that we only use artifacts from only the specified
                          version of these components. -->
                     <exclude>org.apache.hadoop:*</exclude>
@@ -985,14 +996,14 @@ under the License.
               <groupId>org.apache.calcite.avatica</groupId>
               <artifactId>avatica</artifactId>
             </exclusion>
-          <exclusion>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>*</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>ant</groupId>
-            <artifactId>*</artifactId>
-          </exclusion>
+            <exclusion>
+              <groupId>org.eclipse.jetty</groupId>
+              <artifactId>*</artifactId>
+            </exclusion>
+            <exclusion>
+              <groupId>ant</groupId>
+              <artifactId>*</artifactId>
+            </exclusion>
           </exclusions>
         </dependency>
 
@@ -1115,6 +1126,11 @@ under the License.
               <groupId>org.eclipse.jetty</groupId>
               <artifactId>*</artifactId>
             </exclusion>
+            <exclusion>
+              <!-- IMPALA-9468: Avoid pulling in netty for security reasons -->
+              <groupId>io.netty</groupId>
+              <artifactId>*</artifactId>
+            </exclusion>
           </exclusions>
         </dependency>
 
@@ -1139,6 +1155,11 @@ under the License.
             </exclusion>
             <exclusion>
               <groupId>org.eclipse.jetty</groupId>
+              <artifactId>*</artifactId>
+            </exclusion>
+            <exclusion>
+              <!-- IMPALA-9468: Avoid pulling in netty for security reasons -->
+              <groupId>io.netty</groupId>
               <artifactId>*</artifactId>
             </exclusion>
           </exclusions>
@@ -1243,6 +1264,11 @@ under the License.
             <exclusion>
               <!-- IMPALA-9108: Avoid pulling in leveldbjni, which is unneeded. -->
               <groupId>org.fusesource.leveldbjni</groupId>
+              <artifactId>*</artifactId>
+            </exclusion>
+            <exclusion>
+              <!-- IMPALA-9468: Avoid pulling in netty for security reasons -->
+              <groupId>io.netty</groupId>
               <artifactId>*</artifactId>
             </exclusion>
           </exclusions>
