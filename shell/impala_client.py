@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,7 +16,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import print_function, unicode_literals
+from __future__ import print_function
 from compatibility import _xrange as xrange
 
 from bitarray import bitarray
@@ -119,7 +118,7 @@ class ImpalaClient(object):
                ldap_password=None, use_ldap=False, client_connect_timeout_ms=60000,
                verbose=True, use_http_base_transport=False, http_path=None):
     self.connected = False
-    self.impalad_host = impalad[0]
+    self.impalad_host = impalad[0].encode('ascii', 'ignore')
     self.impalad_port = int(impalad[1])
     self.kerberos_host_fqdn = kerberos_host_fqdn
     self.imp_service = None
@@ -379,8 +378,8 @@ class ImpalaClient(object):
 
     if self.use_ldap:
       # Set the BASIC auth header
-      user_passwd = "{0}:{1}".format(self.user, self.ldap_password)
-      auth = base64.encodestring(user_passwd.encode()).decode().strip('\n')
+      auth = base64.encodestring(
+          "{0}:{1}".format(self.user, self.ldap_password)).strip('\n')
       transport.setCustomHeaders({"Authorization": "Basic {0}".format(auth)})
 
     transport.open()
@@ -1006,12 +1005,12 @@ class ImpalaBeeswaxClient(ImpalaClient):
     return ImpalaService.Client(protocol)
 
   def _options_to_string_list(self, set_query_options):
-    if sys.version_info.major < 3:
-      key_value_pairs = set_query_options.iteritems()
-    else:
-      key_value_pairs = set_query_options.items()
+      if sys.version_info.major < 3:
+        key_value_pairs = set_query_options.iteritems()
+      else:
+        key_value_pairs = set_query_options.items()
 
-    return ["%s=%s" % (k, v) for (k, v) in key_value_pairs]
+      return ["%s=%s" % (k, v) for (k, v) in key_value_pairs]
 
   def _open_session(self):
     # Beeswax doesn't have a "session" concept independent of connections, so
@@ -1242,3 +1241,4 @@ class ImpalaBeeswaxClient(ImpalaClient):
           raise RPCException("ERROR: %s" % e.message)
         if "QueryNotFoundException" in str(e):
           raise QueryStateException('Error: Stale query handle')
+

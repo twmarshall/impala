@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -19,7 +18,6 @@
 # under the License.
 
 # default options used by the Impala shell stored in a dict
-from __future__ import print_function, unicode_literals
 
 import getpass
 import os
