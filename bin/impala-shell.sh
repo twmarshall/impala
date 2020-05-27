@@ -21,3 +21,4 @@
 # This script runs the impala shell from a dev environment.
 SHELL_HOME=${IMPALA_SHELL_HOME:-${IMPALA_HOME}/shell}
 exec impala-python ${SHELL_HOME}/impala_shell.py "$@"
+
