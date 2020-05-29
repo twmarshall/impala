@@ -16,7 +16,7 @@
 # under the License.
 
 # Sets up the python path for impala-python. This is needed because tests and other
-# utility scripts depend on some modules external to infra/python/env.
+# utility scripts depend on some modules external to infra/python/env-*.
 # TODO: we should try to reduce our reliance on PYTHONPATH if possible.
 #
 # Setting USE_THRIFT11_GEN_PY will add Thrift 11 Python generated code rather than the
