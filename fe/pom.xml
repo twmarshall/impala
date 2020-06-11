@@ -997,7 +997,7 @@ under the License.
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-ozone-filesystem-lib-current</artifactId>
+          <artifactId>hadoop-ozone-filesystem-hadoop3</artifactId>
           <version>${ozone.version}</version>
         </dependency>
       </dependencies>
