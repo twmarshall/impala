@@ -118,7 +118,7 @@ for MODULE in ${SHELL_HOME}/ext-py/*; do
   echo "Creating an egg for ${MODULE}"
   if [[ "$MODULE" == *"/bitarray"* ]]; then
     # Need to use setuptools to build egg for bitarray module
-    python -c "import setuptools; exec(open('setup.py').read())" -q bdist_egg
+    python -c "import setuptools; execfile('setup.py')" -q bdist_egg clean
   else
     python setup.py -q bdist_egg clean
   fi
