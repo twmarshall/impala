@@ -37,6 +37,7 @@ set -eux -o pipefail
 # Exports various compiler related flags. This was taken from
 # native-toolchain/init-compiler.sh and should be kept in sync with it.
 function init-compiler() {
+  IMPALA_TOOLCHAIN_GCC_HOME="$IMPALA_TOOLCHAIN_PACKAGES_HOME/gcc-$IMPALA_GCC_VERSION"
   # Enable ccache.
 
   # Typically, for Kudu builds, we just put /usr/local/lib/ccache on the path,
@@ -49,38 +50,51 @@ function init-compiler() {
   # and that's a reasonable thing for it to assume.
   cat > wrapped-gcc <<EOF
 #!/bin/bash
-exec ccache $IMPALA_TOOLCHAIN/gcc-$IMPALA_GCC_VERSION/bin/gcc "\$@"
+exec ccache $IMPALA_TOOLCHAIN_GCC_HOME/bin/gcc "\$@"
 EOF
   cat > wrapped-g++ <<EOF
 #!/bin/bash
-exec ccache $IMPALA_TOOLCHAIN/gcc-$IMPALA_GCC_VERSION/bin/g++ "\$@"
+exec ccache $IMPALA_TOOLCHAIN_GCC_HOME/bin/g++ "\$@"
 EOF
   chmod ugo+x wrapped-gcc wrapped-g++
   export CC=$(pwd)/wrapped-gcc
   export CXX=$(pwd)/wrapped-g++
 
   # Assert we're getting the right compilers, despite ccache
-  diff <($CC --version) <($IMPALA_TOOLCHAIN/gcc-$IMPALA_GCC_VERSION/bin/gcc --version)
-  diff <($CXX --version) <($IMPALA_TOOLCHAIN/gcc-$IMPALA_GCC_VERSION/bin/g++ --version)
+  diff <($CC --version) <($IMPALA_TOOLCHAIN_GCC_HOME/bin/gcc --version)
+  diff <($CXX --version) <($IMPALA_TOOLCHAIN_GCC_HOME/bin/g++ --version)
 
   # Upgrade rpath variable to catch current library location and possible future location
-  FULL_RPATH="-Wl,-rpath,$IMPALA_TOOLCHAIN/gcc-$IMPALA_GCC_VERSION/lib64"
+  FULL_RPATH="-Wl,-rpath,$IMPALA_TOOLCHAIN_GCC_HOME/lib64"
   FULL_RPATH="${FULL_RPATH},-rpath,'$$ORIGIN/../lib',-rpath,'$$ORIGIN/../lib64'"
-  FULL_LPATH="-L$IMPALA_TOOLCHAIN/gcc-$IMPALA_GCC_VERSION/lib64"
+  FULL_LPATH="-L$IMPALA_TOOLCHAIN_GCC_HOME/lib64"
 
   ARCH_FLAGS="-mno-avx2"
   LDFLAGS="$ARCH_FLAGS $FULL_RPATH $FULL_LPATH"
   CXXFLAGS="$ARCH_FLAGS -fPIC -m64"
   CFLAGS="-fPIC -m64"
-  BOOST_ROOT="$IMPALA_TOOLCHAIN/boost-$IMPALA_BOOST_VERSION"
+  BOOST_ROOT="$IMPALA_TOOLCHAIN_PACKAGES_HOME/boost-$IMPALA_BOOST_VERSION"
 
-  INCLUDE_PREFIX=$IMPALA_TOOLCHAIN/gcc-$IMPALA_GCC_VERSION/include/c++/$IMPALA_GCC_VERSION/
-  CPLUS_INCLUDE_PATH=$INCLUDE_PREFIX:$INCLUDE_PREFIX/x86_64-unknown-linux-gnu/
+  INCLUDE_PREFIX=$IMPALA_TOOLCHAIN_GCC_HOME/include/c++/$IMPALA_GCC_VERSION/
+
+  # With the transition to GCC 7, the platform string changed. This uses a libstdc++
+  # that can be newer than the system libstdc++. Kudu builds a C++ executable and then
+  # runs it for further parts of the build, so we need to export LD_LIBRARY_PATH so
+  # that it runs with the right libstdc++.
+  if [[ "$IMPALA_GCC_VERSION" == "7.5.0" ]]; then
+    GCC_PLATFORM_STRING="x86_64-pc-linux-gnu"
+    LD_LIBRARY_PATH=$IMPALA_TOOLCHAIN_GCC_HOME/lib64
+  else
+    # GCC 4.9.2
+    GCC_PLATFORM_STRING="x86_64-unknown-linux-gnu"
+    LD_LIBRARY_PATH=""
+  fi;
+  CPLUS_INCLUDE_PATH=$INCLUDE_PREFIX:$INCLUDE_PREFIX/$GCC_PLATFORM_STRING/
 
   # Add binutils, cmake, and gcc to the path.
-  PATH="$IMPALA_TOOLCHAIN/binutils-$IMPALA_BINUTILS_VERSION/bin:$PATH"
-  PATH="$IMPALA_TOOLCHAIN/cmake-$IMPALA_CMAKE_VERSION/bin/:$PATH"
-  PATH="$IMPALA_TOOLCHAIN/gcc-$IMPALA_GCC_VERSION/bin/:$PATH"
+  PATH="$IMPALA_TOOLCHAIN_PACKAGES_HOME/binutils-$IMPALA_BINUTILS_VERSION/bin:$PATH"
+  PATH="$IMPALA_TOOLCHAIN_PACKAGES_HOME/cmake-$IMPALA_CMAKE_VERSION/bin/:$PATH"
+  PATH="$IMPALA_TOOLCHAIN_GCC_HOME/bin/:$PATH"
 
   export BOOST_ROOT
   export CC
@@ -89,6 +103,7 @@ EOF
   export LDFLAGS
   export CFLAGS
   export CPLUS_INCLUDE_PATH
+  export LD_LIBRARY_PATH
   export PATH
 }
 
