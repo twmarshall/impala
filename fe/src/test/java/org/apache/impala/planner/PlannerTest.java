@@ -325,7 +325,8 @@ public class PlannerTest extends PlannerTestBase {
     addTestTable("create table test_hdfs_insert_writer_limit.unpartitioned_table"
         + " (id int) location '/'");
     runPlannerTestFile("insert-hdfs-writer-limit", "test_hdfs_insert_writer_limit",
-        ImmutableSet.of(PlannerTestOption.EXTENDED_EXPLAIN));
+        ImmutableSet.of(PlannerTestOption.EXTENDED_EXPLAIN,
+            PlannerTestOption.DO_NOT_VALIDATE_ROWCOUNT_ESTIMATION_FOR_PARTITIONS));
   }
 
   @Test
@@ -383,8 +384,9 @@ public class PlannerTest extends PlannerTestBase {
     // The FK/PK detection result is included in EXTENDED or higher.
     TQueryOptions options = defaultQueryOptions();
     options.setDisable_hdfs_num_rows_estimate(false);
-    runPlannerTestFile("fk-pk-join-detection-hdfs-num-rows-est-enabled",
-        options, ImmutableSet.of(PlannerTestOption.EXTENDED_EXPLAIN));
+    runPlannerTestFile("fk-pk-join-detection-hdfs-num-rows-est-enabled", options,
+        ImmutableSet.of(PlannerTestOption.EXTENDED_EXPLAIN,
+            PlannerTestOption.DO_NOT_VALIDATE_ROWCOUNT_ESTIMATION_FOR_PARTITIONS));
   }
 
   @Test
@@ -598,7 +600,9 @@ public class PlannerTest extends PlannerTestBase {
 
   @Test
   public void testBloomFilterAssignment() {
-    runPlannerTestFile("bloom-filter-assignment");
+    runPlannerTestFile("bloom-filter-assignment",
+        ImmutableSet.of(
+            PlannerTestOption.DO_NOT_VALIDATE_ROWCOUNT_ESTIMATION_FOR_PARTITIONS));
   }
 
   @Test
@@ -614,7 +618,8 @@ public class PlannerTest extends PlannerTestBase {
   @Test
   public void testParquetFiltering() {
     runPlannerTestFile("parquet-filtering",
-        ImmutableSet.of(PlannerTestOption.EXTENDED_EXPLAIN));
+        ImmutableSet.of(PlannerTestOption.EXTENDED_EXPLAIN,
+            PlannerTestOption.DO_NOT_VALIDATE_ROWCOUNT_ESTIMATION_FOR_PARTITIONS));
   }
 
   @Test
@@ -623,7 +628,8 @@ public class PlannerTest extends PlannerTestBase {
     options.setParquet_dictionary_filtering(false);
     options.setParquet_read_statistics(false);
     runPlannerTestFile("parquet-filtering-disabled", options,
-        ImmutableSet.of(PlannerTestOption.EXTENDED_EXPLAIN));
+        ImmutableSet.of(PlannerTestOption.EXTENDED_EXPLAIN,
+            PlannerTestOption.DO_NOT_VALIDATE_ROWCOUNT_ESTIMATION_FOR_PARTITIONS));
   }
 
   @Test
@@ -788,7 +794,8 @@ public class PlannerTest extends PlannerTestBase {
   public void testTableSample() {
     TQueryOptions options = defaultQueryOptions();
     runPlannerTestFile("tablesample", options,
-        ImmutableSet.of(PlannerTestOption.EXTENDED_EXPLAIN));
+        ImmutableSet.of(PlannerTestOption.EXTENDED_EXPLAIN,
+            PlannerTestOption.DO_NOT_VALIDATE_ROWCOUNT_ESTIMATION_FOR_PARTITIONS));
   }
 
   @Test
@@ -849,7 +856,9 @@ public class PlannerTest extends PlannerTestBase {
     options.setExplain_level(TExplainLevel.EXTENDED);
     options.setDisable_hdfs_num_rows_estimate(false);
     options.setEnabled_runtime_filter_types(TEnabledRuntimeFilterTypes.MIN_MAX);
-    runPlannerTestFile("min-max-runtime-filters-hdfs-num-rows-est-enabled", options);
+    runPlannerTestFile("min-max-runtime-filters-hdfs-num-rows-est-enabled", options,
+        ImmutableSet.of(
+            PlannerTestOption.DO_NOT_VALIDATE_ROWCOUNT_ESTIMATION_FOR_PARTITIONS));
   }
 
   @Test
@@ -1003,6 +1012,9 @@ public class PlannerTest extends PlannerTestBase {
     filter = TestUtils.ROW_SIZE_FILTER;
     assertEquals(" row-size= cardinality=10.3K",
         filter.transform(" row-size=10B cardinality=10.3K"));
+    filter = TestUtils.PARTITIONS_FILTER;
+    assertEquals(" partitions: 0/24 rows=",
+        filter.transform(" partitions: 0/24 rows=10.3K"));
   }
 
   @Test
@@ -1073,7 +1085,9 @@ public class PlannerTest extends PlannerTestBase {
    */
   @Test
   public void testAcidTableScans() {
-    runPlannerTestFile("acid-scans", "functional_orc_def");
+    runPlannerTestFile("acid-scans", "functional_orc_def",
+        ImmutableSet.of(
+            PlannerTestOption.DO_NOT_VALIDATE_ROWCOUNT_ESTIMATION_FOR_PARTITIONS));
   }
 
   /**
