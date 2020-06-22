@@ -208,6 +208,10 @@ under the License.
           <groupId>org.apache.kafka</groupId>
           <artifactId>kafka_2.11</artifactId>
         </exclusion>
+        <exclusion>
+          <groupId>org.apache.kafka</groupId>
+          <artifactId>kafka_2.12</artifactId>
+        </exclusion>
       </exclusions>
     </dependency>
     <!-- this is needed by ranger-plugins-audit -->
