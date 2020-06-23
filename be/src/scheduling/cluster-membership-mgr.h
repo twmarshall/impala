@@ -168,14 +168,14 @@ class ClusterMembershipMgr {
   /// queries.
   const ExecutorGroup* GetEmptyExecutorGroup() { return &empty_exec_group_; }
 
+  /// Returns the local backend descriptor or nullptr if no local backend has been
+  /// registered.
+  BeDescSharedPtr GetLocalBackendDescriptor();
+
  private:
   /// Serializes and adds the local backend descriptor to 'subscriber_topic_updates'.
   void AddLocalBackendToStatestore(const BackendDescriptorPB& local_be_desc,
       std::vector<TTopicDelta>* subscriber_topic_updates);
-
-  /// Returns the local backend descriptor or nullptr if no local backend has been
-  /// registered.
-  BeDescSharedPtr GetLocalBackendDescriptor();
 
   /// Notifies all registered callbacks of the latest changes to the membership by sending
   /// them the latest cluster membership snapshot.

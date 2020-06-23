@@ -152,3 +152,38 @@ message QuerySchedulePB {
   // successfully.
   optional int64 coord_backend_mem_to_admit = 8;
 }
+
+
+message AdmitQueryRequestPB {
+  optional UniqueIdPB query_id = 1;
+
+  optional int32 query_exec_request_sidecar_idx = 2;
+
+  optional int32 query_options_sidecar_idx = 3;
+}
+
+message AdmitQueryResponsePB {
+  optional StatusPB status = 1;
+
+  optional QuerySchedulePB query_schedule = 2;
+}
+
+message ReleaseQueryRequestPB {
+  optional UniqueIdPB query_id = 1;
+
+  optional bool done = 2;
+
+  optional int64 peak_mem_consumption = 3;
+
+  repeated NetworkAddressPB host_addr = 4;
+}
+
+message ReleaseQueryResponsePB {
+  optional StatusPB status = 1;
+}
+
+service AdmissionControlService {
+  rpc AdmitQuery(AdmitQueryRequestPB) returns (AdmitQueryResponsePB);
+
+  rpc ReleaseQuery(ReleaseQueryRequestPB) returns (ReleaseQueryResponsePB);
+}

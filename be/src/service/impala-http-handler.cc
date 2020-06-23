@@ -939,7 +939,7 @@ void ImpalaHttpHandler::QuerySummaryHandler(bool include_json_plan, bool include
 
 void ImpalaHttpHandler::BackendsHandler(const Webserver::WebRequest& req,
     Document* document) {
-  AdmissionController::PerHostStats host_stats;
+  /*AdmissionController::PerHostStats host_stats;
   ExecEnv::GetInstance()->admission_controller()->PopulatePerHostMemReservedAndAdmitted(
       &host_stats);
   Value backends_list(kArrayType);
@@ -1036,12 +1036,12 @@ void ImpalaHttpHandler::BackendsHandler(const Webserver::WebRequest& req,
   if (num_blacklisted_backends > 0) {
     document->AddMember(
         "num_blacklisted_backends", num_blacklisted_backends, document->GetAllocator());
-  }
+        }*/
 }
 
 void ImpalaHttpHandler::AdmissionStateHandler(
     const Webserver::WebRequest& req, Document* document) {
-  const auto& args = req.parsed_args;
+  /*const auto& args = req.parsed_args;
   AdmissionController* ac = ExecEnv::GetInstance()->admission_controller();
   Webserver::ArgumentMap::const_iterator pool_name_arg = args.find("pool_name");
   bool get_all_pools = (pool_name_arg == args.end());
@@ -1131,12 +1131,12 @@ void ImpalaHttpHandler::AdmissionStateHandler(
   }
 
   // Indicator that helps render UI elements based on this condition.
-  document->AddMember("get_all_pools", get_all_pools, document->GetAllocator());
+  document->AddMember("get_all_pools", get_all_pools, document->GetAllocator());*/
 }
 
 void ImpalaHttpHandler::ResetResourcePoolStatsHandler(
     const Webserver::WebRequest& req, Document* document) {
-  const auto& args = req.parsed_args;
+  /*const auto& args = req.parsed_args;
   Webserver::ArgumentMap::const_iterator pool_name_arg = args.find("pool_name");
   bool reset_all_pools = (pool_name_arg == args.end());
   if (reset_all_pools) {
@@ -1144,5 +1144,5 @@ void ImpalaHttpHandler::ResetResourcePoolStatsHandler(
   } else {
     ExecEnv::GetInstance()->admission_controller()->ResetPoolInformationalStats(
         pool_name_arg->second);
-  }
+        }*/
 }

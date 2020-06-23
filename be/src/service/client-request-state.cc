@@ -31,6 +31,7 @@
 #include "common/status.h"
 #include "exec/kudu-util.h"
 #include "kudu/rpc/rpc_controller.h"
+#include "kudu/rpc/rpc_sidecar.h"
 #include "rpc/rpc-mgr.inline.h"
 #include "runtime/backend-client.h"
 #include "runtime/coordinator.h"
@@ -57,6 +58,8 @@
 #include "util/time.h"
 #include "util/uid-util.h"
 
+#include "gen-cpp/admission_control_service.pb.h"
+#include "gen-cpp/admission_control_service.proxy.h"
 #include "gen-cpp/CatalogService.h"
 #include "gen-cpp/CatalogService_types.h"
 #include "gen-cpp/control_service.pb.h"
@@ -71,6 +74,7 @@ using boost::algorithm::iequals;
 using boost::algorithm::join;
 using boost::algorithm::replace_all_copy;
 using kudu::rpc::RpcController;
+using kudu::rpc::RpcSidecar;
 using namespace apache::hive::service::cli::thrift;
 using namespace apache::thrift;
 using namespace beeswax;
@@ -524,21 +528,89 @@ Status ClientRequestState::ExecAsyncQueryOrDmlRequest(
   return Status::OK();
 }
 
+void ClientRequestState::BuildAdmitQueryParams(AdmitQueryRequestPB* request, RpcController* rpc_controller) {
+    TUniqueIdToUniqueIdPB(query_id(), request->mutable_query_id());
+
+    {
+      // Serialize the TQueryExecRequest and add it as a sidecar.
+      ThriftSerializer serializer(true);
+      uint8_t* serialized_buf = nullptr;
+      uint32_t serialized_len = 0;
+      Status serialize_status =
+        serializer.SerializeToBuffer(&exec_request_->query_exec_request, &serialized_len, &serialized_buf);
+     LOG(INFO) << "asdf serialized_len=" << serialized_len;
+     ABORT_IF_ERROR(serialize_status); // TODO
+
+      // TODO: eliminate the extra copy here by using a Slice
+      unique_ptr<kudu::faststring> sidecar_buf = make_unique<kudu::faststring>();
+     sidecar_buf->assign_copy(serialized_buf, serialized_len);
+     unique_ptr<RpcSidecar> rpc_sidecar = RpcSidecar::FromFaststring(move(sidecar_buf));
+
+      int sidecar_idx;
+     kudu::Status sidecar_status =
+           rpc_controller->AddOutboundSidecar(move(rpc_sidecar), &sidecar_idx);
+     LOG(INFO) << "asdf sidecar_idx=" << sidecar_idx;
+     ABORT_IF_ERROR(FromKuduStatus(sidecar_status, "asdf")); // TODO
+     request->set_query_exec_request_sidecar_idx(sidecar_idx);
+   }
+
+    {
+      // Serialize the TQueryOptions and add it as a sidecar.
+        ThriftSerializer serializer(true);
+      uint8_t* serialized_buf = nullptr;
+      uint32_t serialized_len = 0;
+    Status serialize_status =
+        serializer.SerializeToBuffer(&exec_request_->query_options, &serialized_len, &serialized_buf);
+     LOG(INFO) << "asdf serialized_len=" << serialized_len;
+     ABORT_IF_ERROR(serialize_status); // TODO
+
+      // TODO: eliminate the extra copy here by using a Slice
+      unique_ptr<kudu::faststring> sidecar_buf = make_unique<kudu::faststring>();
+     sidecar_buf->assign_copy(serialized_buf, serialized_len);
+     unique_ptr<RpcSidecar> rpc_sidecar = RpcSidecar::FromFaststring(move(sidecar_buf));
+
+      int sidecar_idx;
+     kudu::Status sidecar_status =
+           rpc_controller->AddOutboundSidecar(move(rpc_sidecar), &sidecar_idx);
+     LOG(INFO) << "asdf sidecar_idx=" << sidecar_idx;
+     ABORT_IF_ERROR(FromKuduStatus(sidecar_status, "asdf")); // TODO
+     request->set_query_options_sidecar_idx(sidecar_idx);
+   }
+ }
+
 void ClientRequestState::FinishExecQueryOrDmlRequest() {
   DebugActionNoFail(exec_request_->query_options, "CRS_BEFORE_ADMISSION");
 
-  DCHECK(ExecEnv::GetInstance()->admission_controller() != nullptr);
   DCHECK(exec_request_->__isset.query_exec_request);
-  UniqueIdPB query_id_pb;
-  TUniqueIdToUniqueIdPB(query_id(), &query_id_pb);
-  Status admit_status =
+
+  TNetworkAddress admission_control_addr = MakeNetworkAddress("127.0.0.1", 29500);
+  string ac_hostname = "localhost.localdomain";
+  std::unique_ptr<AdmissionControlServiceProxy> proxy;
+  Status get_proxy_status = ExecEnv::GetInstance()->rpc_mgr()->GetProxy(admission_control_addr, ac_hostname, &proxy);
+  DCHECK(get_proxy_status.ok());
+  AdmitQueryRequestPB req;
+  AdmitQueryResponsePB resp;
+  RpcController rpc_controller;
+  BuildAdmitQueryParams(&req, &rpc_controller);
+  kudu::Status admit_rpc_status = proxy->AdmitQuery(req, &resp, &rpc_controller);
+  Status admit_status = Status(resp.status());
+  LOG(INFO) << "asdf admit=" << admit_rpc_status.ToString() << " " << Status(resp.status());
+
+  /*Status admit_status =
       ExecEnv::GetInstance()->admission_controller()->SubmitForAdmission(
           {query_id_pb, exec_request_->query_exec_request, exec_request_->query_options,
               summary_profile_, query_events_},
-          &admit_outcome_, &schedule_);
+              &admit_outcome_, &schedule_);*/
   {
     lock_guard<mutex> l(lock_);
-    if (!UpdateQueryStatus(admit_status).ok()) return;
+    if (!UpdateQueryStatus(admit_status).ok()) {
+            LOG(INFO) << "asdf admit_status not ok, returning";
+            return;
+          }
+        if (!UpdateQueryStatus(FromKuduStatus(admit_rpc_status, "asdf")).ok()) {
+            LOG(INFO) << "asdf admit_rpc_status not ok, returning";
+            return;
+          }
   }
   DCHECK(schedule_.get() != nullptr);
   // Note that we don't need to check for cancellation between admission and query

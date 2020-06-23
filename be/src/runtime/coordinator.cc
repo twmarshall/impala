@@ -33,8 +33,10 @@
 #include "exec/plan-root-sink.h"
 #include "gen-cpp/ImpalaInternalService_constants.h"
 #include "gen-cpp/admission_control_service.pb.h"
+#include "gen-cpp/admission_control_service.proxy.h"
 #include "kudu/rpc/rpc_context.h"
 #include "kudu/rpc/rpc_sidecar.h"
+#include "rpc/rpc-mgr.h"
 #include "runtime/coordinator-backend-state.h"
 #include "runtime/coordinator-filter-state.h"
 #include "runtime/debug-options.h"
@@ -1210,37 +1212,40 @@ void Coordinator::ReleaseExecResources() {
 void Coordinator::ReleaseQueryAdmissionControlResources() {
   DCHECK(exec_rpcs_complete_.Load()) << "Exec() must be called first";
   vector<BackendState*> unreleased_backends =
-      backend_resource_state_->CloseAndGetUnreleasedBackends();
-  if (!unreleased_backends.empty()) {
-    ReleaseBackendAdmissionControlResources(unreleased_backends);
-    backend_resource_state_->BackendsReleased(unreleased_backends);
-    for (int i = 0; i < unreleased_backends.size(); ++i) {
-      backend_released_barrier_.Notify();
-    }
-  }
-  // Wait for all backends to be released before calling
-  // AdmissionController::ReleaseQuery.
-  backend_released_barrier_.Wait();
+    backend_resource_state_->CloseAndGetUnreleasedBackends();
+    ReleaseBackendAdmissionControlResources(unreleased_backends, true);
   LOG(INFO) << "Release admission control resources for query_id=" << PrintId(query_id());
-  AdmissionController* admission_controller =
-      ExecEnv::GetInstance()->admission_controller();
-  DCHECK(admission_controller != nullptr);
-  admission_controller->ReleaseQuery(exec_params_.query_id(),
-      ComputeQueryResourceUtilization().peak_per_host_mem_consumption);
-  query_events_->MarkEvent("Released admission control resources");
+   backend_resource_state_->BackendsReleased(unreleased_backends);
+ query_events_->MarkEvent("Released admission control resources");
+   LOG(INFO) << "asdf ReleaseQueryAdmissionControlResources done";
 }
 
 void Coordinator::ReleaseBackendAdmissionControlResources(
-    const vector<BackendState*>& backend_states) {
-  AdmissionController* admission_controller =
-      ExecEnv::GetInstance()->admission_controller();
-  DCHECK(admission_controller != nullptr);
-  vector<NetworkAddressPB> host_addrs;
-  for (auto backend_state : backend_states) {
-    host_addrs.push_back(backend_state->impalad_address());
-  }
-  admission_controller->ReleaseQueryBackends(exec_params_.query_id(), host_addrs);
-}
+       const vector<BackendState*>& backend_states, bool is_done) {
+     LOG(INFO) << "asdf ReleaseBackendAdmissionControlResources " << PrintId(query_id()) << " num=" << backend_states.size() << " is_done=" << (is_done ? "true" : "false");
+     ReleaseQueryRequestPB req;
+     ReleaseQueryResponsePB resp;
+     RpcController rpc_controller;
+     TUniqueIdToUniqueIdPB(query_id(), req.mutable_query_id());
+     req.set_done(is_done);
+
+    if (is_done) {
+      req.set_peak_mem_consumption(ComputeQueryResourceUtilization().peak_per_host_mem_consumption);
+    }
+
+    for (BackendState* be : backend_states) {
+      *req.add_host_addr() = be->impalad_address();
+    }
+
+    TNetworkAddress admission_control_addr = MakeNetworkAddress("127.0.0.1", 29500); // TODO
+   string ac_hostname = "localhost.localdomain"; // TODO
+   std::unique_ptr<AdmissionControlServiceProxy> proxy;
+   Status get_proxy_status = ExecEnv::GetInstance()->rpc_mgr()->GetProxy(admission_control_addr, ac_hostname, &proxy);
+   DCHECK(get_proxy_status.ok());
+   LOG(INFO) << "asdf calling ReleaseQuery";
+   kudu::Status admit_rpc_status = proxy->ReleaseQuery(req, &resp, &rpc_controller);
+   LOG(INFO) << "asdf calling ReleaseQuery done";
+ }
 
 Coordinator::ResourceUtilization Coordinator::ComputeQueryResourceUtilization() {
   DCHECK(exec_rpcs_complete_.Load()) << "Exec() must be called first";

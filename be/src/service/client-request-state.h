@@ -32,8 +32,15 @@
 #include <boost/unordered_set.hpp>
 #include <vector>
 
+namespace kudu {
+namespace rpc {
+class RpcController;
+}
+}
+
 namespace impala {
 
+class AdmitQueryRequestPB;
 class ClientRequestStateCleaner;
 class Coordinator;
 class Expr;
@@ -726,6 +733,8 @@ class ClientRequestState {
   /// Logs audit and column lineage events. Expects that Wait() has already finished.
   /// Grabs lock_ for polling the query_status(). Hence do not call it under lock_.
   void LogQueryEvents();
+
+  void BuildAdmitQueryParams(AdmitQueryRequestPB* request, kudu::rpc::RpcController* rpc_controller);
 };
 
 }

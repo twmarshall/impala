@@ -84,6 +84,7 @@ add_executable(unifiedbetests
 # the impalad binary.
 set (STATESTORED_SYMLINK ${EXECUTABLE_OUTPUT_PATH}/statestored)
 set (CATALOGD_SYMLINK ${EXECUTABLE_OUTPUT_PATH}/catalogd)
+set (ADMISSIONCONTROLD_SYMLINK ${EXECUTABLE_OUTPUT_PATH}/admissioncontrold)
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${STATESTORED_SYMLINK}
@@ -93,10 +94,15 @@ ADD_CUSTOM_COMMAND(
   OUTPUT ${CATALOGD_SYMLINK}
   COMMAND ${CMAKE_COMMAND} -E create_symlink impalad ${CATALOGD_SYMLINK}
   DEPENDS impalad)
+ADD_CUSTOM_COMMAND(
+  OUTPUT ${ADMISSIONCONTROLD_SYMLINK}
+  COMMAND ${CMAKE_COMMAND} -E create_symlink impalad ${ADMISSIONCONTROLD_SYMLINK}
+  DEPENDS impalad)
 ADD_CUSTOM_TARGET(statestored ALL DEPENDS ${STATESTORED_SYMLINK})
 ADD_CUSTOM_TARGET(catalogd ALL DEPENDS ${CATALOGD_SYMLINK})
+ADD_CUSTOM_TARGET(admissioncontrold ALL DEPENDS ${ADMISSIONCONTROLD_SYMLINK})
 
-ADD_CUSTOM_TARGET(daemons DEPENDS impalad statestored catalogd fesupport)
+ADD_CUSTOM_TARGET(daemons DEPENDS impalad statestored catalogd admissioncontrold fesupport)
 
 # This permits libraries loaded by dlopen to link to the symbols in the program.
 set_target_properties(impalad PROPERTIES LINK_FLAGS -rdynamic)

@@ -148,7 +148,6 @@ class ExecEnv {
 
   ClusterMembershipMgr* cluster_membership_mgr() { return cluster_membership_mgr_.get(); }
   Scheduler* scheduler() { return scheduler_.get(); }
-  AdmissionController* admission_controller() { return admission_controller_.get(); }
   StatestoreSubscriber* subscriber() { return statestore_subscriber_.get(); }
 
   const IpAddr& ip_address() const { return ip_address_; }
@@ -185,7 +184,6 @@ class ExecEnv {
   boost::scoped_ptr<KrpcDataStreamMgr> stream_mgr_;
   boost::scoped_ptr<ClusterMembershipMgr> cluster_membership_mgr_;
   boost::scoped_ptr<Scheduler> scheduler_;
-  boost::scoped_ptr<AdmissionController> admission_controller_;
   boost::scoped_ptr<StatestoreSubscriber> statestore_subscriber_;
   boost::scoped_ptr<ImpalaBackendClientCache> impalad_client_cache_;
   boost::scoped_ptr<CatalogServiceClientCache> catalogd_client_cache_;

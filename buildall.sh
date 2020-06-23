@@ -429,7 +429,7 @@ build_all_components() {
   local MAKE_TARGETS=""
   if [[ $BUILD_TESTS -eq 0 ]]; then
     # Specify all the non-test targets
-    MAKE_TARGETS="impalad statestored catalogd fesupport loggingsupport ImpalaUdf \
+    MAKE_TARGETS="impalad statestored catalogd admissioncontrold fesupport loggingsupport ImpalaUdf \
         udasample udfsample"
     if (( build_independent_targets )); then
       MAKE_TARGETS+=" cscope fe tarballs"

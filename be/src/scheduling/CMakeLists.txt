@@ -27,7 +27,10 @@ set_source_files_properties(${ADMISSION_CONTROL_SERVICE_PROTO_SRCS} PROPERTIES G
 
 # TODO: Move other scheduling-related classes here
 add_library(Scheduling STATIC
+  ac-exec-env.cc
   ${ADMISSION_CONTROL_SERVICE_PROTO_SRCS}
+  admission-control-service.cc
+  admission-controld-main.cc
   admission-controller.cc
   executor-blacklist.cc
   cluster-membership-mgr.cc

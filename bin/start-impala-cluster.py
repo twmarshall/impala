@@ -71,6 +71,9 @@ parser.add_option("--state_store_args", dest="state_store_args", action="append"
 parser.add_option("--catalogd_args", dest="catalogd_args", action="append",
                   type="string", default=[],
                   help="Additional arguments to pass to the Catalog Service at startup")
+parser.add_option("--admissioncontrold_args", dest="admissioncontrold_args",
+                  action="append", type="string", default=[],
+                  help="Additional arguments to pass to the Admission Control Service at startup")
 parser.add_option("--kill", "--kill_only", dest="kill_only", action="store_true",
                   default=False, help="Instead of starting the cluster, just kill all"
                   " the running impalads and the statestored.")
@@ -286,6 +289,13 @@ def build_catalogd_arg_list():
       build_kerberos_args("catalogd") +
       combine_arg_list_opts(options.catalogd_args))
 
+def build_admissioncontrold_arg_list():
+  """Build a list of command line arguments to pass to the admissioncontrold."""
+  return (build_logging_args("admissioncontrold") +
+      combine_arg_list_opts(options.admissioncontrold_args))
+
+  #build_kerberos_args("admissioncontrold") +
+
 
 def build_impalad_arg_lists(cluster_size, num_coordinators, use_exclusive_coordinators,
     remap_ports, start_idx=0):
@@ -455,7 +465,7 @@ class MiniClusterOperations(object):
     return ImpalaCluster()
 
   def kill_all_daemons(self, force=False):
-    kill_matching_processes(["catalogd", "impalad", "statestored"], force)
+    kill_matching_processes(["catalogd", "impalad", "statestored", "admissioncontrold"], force)
 
   def kill_all_impalads(self, force=False):
     kill_matching_processes(["impalad"], force=force)
@@ -465,6 +475,9 @@ class MiniClusterOperations(object):
 
   def kill_statestored(self, force=False):
     kill_matching_processes(["statestored"], force=force)
+
+  def kill_admissioncontrold(self, force=False):
+    kill_matching_processes(["admissioncontrold"], force=force)
 
   def start_statestore(self):
     LOG.info("Starting State Store logging to {log_dir}/statestored.INFO".format(
@@ -483,6 +496,15 @@ class MiniClusterOperations(object):
         jvm_debug_port=DEFAULT_CATALOGD_JVM_DEBUG_PORT)
     if not check_process_exists("catalogd", 10):
       raise RuntimeError("Unable to start catalogd. Check log or file permissions"
+                         " for more details.")
+
+  def start_admissioncontrold(self):
+    LOG.info("Starting Admission Control Service logging to {log_dir}/admissioncontrold.INFO".format(
+        log_dir=options.log_dir))
+    output_file = os.path.join(options.log_dir, "admissioncontrold-out.log")
+    run_daemon_with_options("admissioncontrold", build_admissioncontrold_arg_list(), output_file)
+    if not check_process_exists("admissioncontrold", 10):
+      raise RuntimeError("Unable to start admissioncontrold. Check log or file permissions"
                          " for more details.")
 
   def start_impalads(self, cluster_size, num_coordinators, use_exclusive_coordinators,
@@ -538,6 +560,7 @@ class DockerMiniClusterOperations(object):
   def kill_all_daemons(self, force=False):
     self.kill_statestored(force=force)
     self.kill_catalogd(force=force)
+    self.kill_admissioncontrold(force=force)
     self.kill_all_impalads(force=force)
 
   def kill_all_impalads(self, force=False):
@@ -555,6 +578,9 @@ class DockerMiniClusterOperations(object):
 
   def kill_statestored(self, force=False):
     self.__stop_container__("statestored")
+
+  def kill_admissioncontrold(self, force=False):
+    self.__stop_container__("admissioncontrold")
 
   def start_statestore(self):
     self.__run_container__("statestored", build_statestored_arg_list(),
@@ -774,6 +800,7 @@ if __name__ == "__main__":
     else:
       cluster_ops.start_statestore()
       cluster_ops.start_catalogd()
+      cluster_ops.start_admissioncontrold()
       cluster_ops.start_impalads(options.cluster_size, options.num_coordinators,
                                  options.use_exclusive_coordinators)
     # Sleep briefly to reduce log spam: the cluster takes some time to start up.

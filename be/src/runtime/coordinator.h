@@ -590,7 +590,7 @@ class Coordinator { // NOLINT: The member variables could be re-ordered to save 
   /// by each BackendState and decrements the number of running queries on the host
   /// running the BackendState.
   void ReleaseBackendAdmissionControlResources(
-      const std::vector<BackendState*>& backend_states);
+      const std::vector<BackendState*>& backend_states, bool is_done = false);
 
   /// Checks the exec_state_ of the query and returns true if the query is executing.
   bool IsExecuting();

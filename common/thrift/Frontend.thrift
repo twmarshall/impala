@@ -32,6 +32,7 @@ include "Status.thrift"
 include "CatalogObjects.thrift"
 include "CatalogService.thrift"
 include "LineageGraph.thrift"
+include "StatestoreService.thrift"
 
 // These are supporting structs for JniFrontend.java, which serves as the glue
 // between our C++ execution environment and the Java frontend.
