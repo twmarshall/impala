@@ -50,6 +50,8 @@ if ! ${IS_STANDALONE_IMPALA_BUILD}; then
     export CDP_TEZ_VERSION=0.9.1.7.2.1.0-SNAPSHOT
     export CDP_OZONE_VERSION=0.6.0.7.2.1.0-SNAPSHOT
     export CDP_ATLAS_VERSION=2.0.0.7.2.1.0-SNAPSHOT
+    export CDP_AVRO_JAVA_VERSION=1.8.2.7.2.1.0-SNAPSHOT
+    export CDP_PARQUET_VERSION=1.10.99.7.2.1.0-SNAPSHOT
     # TODO: remove these IMPALA_KUDU_* once there is proper support of CDP Kudu
     export IMPALA_KUDU_VERSION=1.12.0.7.2.1.0-SNAPSHOT
     export IMPALA_KUDU_JAVA_VERSION=1.12.0.7.2.1.0-SNAPSHOT
@@ -120,9 +122,9 @@ fi
 # Get Java version strings from cdh-root.properties and determine URLs based on
 # those version strings.
 function get_cdp_version {
-  COMPONENT=$(echo ${1} | awk '{ print tolower($0) }')
-  UPPERCASE_COMPONENT=$(echo ${1} | awk '{ print toupper($0) }')
-  VERSION=$(cat ${CDP_PROPERTIES_FILE} | grep ^cdh.${COMPONENT}.version | cut -d= -f2)
+  local COMPONENT=$(echo ${1} | awk '{ print tolower($0) }')
+  local UPPERCASE_COMPONENT=$(echo ${1} | awk '{ print toupper($0) }')
+  local VERSION=$(cat ${CDP_PROPERTIES_FILE} | grep ^cdh.${COMPONENT}.version | cut -d= -f2)
   echo "Version for ${UPPERCASE_COMPONENT}: $VERSION"
   export CDP_${UPPERCASE_COMPONENT}_VERSION=${VERSION}
 }
@@ -136,6 +138,8 @@ get_cdp_version ranger
 get_cdp_version tez
 get_cdp_version ozone
 get_cdp_version atlas
+get_cdp_version avro
+get_cdp_version parquet
 
 [[ -n $CDP_HADOOP_VERSION ]]
 [[ -n $CDP_HBASE_VERSION ]]
@@ -146,12 +150,20 @@ get_cdp_version atlas
 [[ -n $CDP_TEZ_VERSION ]]
 [[ -n $CDP_OZONE_VERSION ]]
 [[ -n $CDP_ATLAS_VERSION ]]
+[[ -n $CDP_AVRO_VERSION ]]
+[[ -n $CDP_PARQUET_VERSION ]]
 
 # Kudu Java version matches the Kudu version
 # Ugly hack: We don't want this to be replaced. Break it into two statements so it
 # doesn't match the "export CDP_KUDU_JAVA_VERSION" regex.
 CDP_KUDU_JAVA_VERSION=${CDP_KUDU_VERSION}
 export CDP_KUDU_JAVA_VERSION
+
+# Avro Java version matches the Avro version
+# Ugly hack: We don't want this to be replaced. Break it into two statements so it
+# doesn't match the "export CDP_AVRO_JAVA_VERSION" regex.
+CDP_AVRO_JAVA_VERSION=${CDP_AVRO_VERSION}
+export CDP_AVRO_JAVA_VERSION
 
 # Compute the URLs for the minicluster tarballs
 # ${version} in CDP_<PACKAGE>_URL will be replaced by __compute_version() in
