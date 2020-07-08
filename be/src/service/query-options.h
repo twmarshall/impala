@@ -206,6 +206,7 @@ typedef std::unordered_map<string, beeswax::TQueryOptionLevel::type>
   QUERY_OPT_FN(enable_distinct_semi_join_optimization,\
       ENABLE_DISTINCT_SEMI_JOIN_OPTIMIZATION, TQueryOptionLevel::ADVANCED)\
   QUERY_OPT_FN(sort_run_bytes_limit, SORT_RUN_BYTES_LIMIT, TQueryOptionLevel::ADVANCED)\
+  QUERY_OPT_FN(max_fs_writers, MAX_FS_WRITERS, TQueryOptionLevel::ADVANCED)\
   QUERY_OPT_FN(runtime_filter_error_rate, RUNTIME_FILTER_ERROR_RATE,\
       TQueryOptionLevel::ADVANCED)\
   ;

@@ -437,7 +437,10 @@ struct TQueryOptions {
   107: optional i64 sort_run_bytes_limit = -1;
 
   // See comment in ImpalaService.thrift
-  108: optional double runtime_filter_error_rate;
+  108: optional i32 max_fs_writers = 0;
+
+ // See comment in ImpalaService.thrift
+  109: optional double runtime_filter_error_rate;
 }
 
 // Impala currently has two types of sessions: Beeswax and HiveServer2

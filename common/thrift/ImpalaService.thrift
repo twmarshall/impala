@@ -548,9 +548,13 @@ enum TImpalaQueryOptions {
   // 0 or -1 means this has no effect.
   SORT_RUN_BYTES_LIMIT = 106
 
+  // Sets an upper limit on the number of fs writer instances to be scheduled during
+  // insert. Currently this limit only applies to HDFS inserts.
+  MAX_FS_WRITERS = 107
+
   // A value (0.0, 1.0) that is the target false positive probability for runtime bloom
   // filters. If not set, falls back to max_filter_error_rate.
-  RUNTIME_FILTER_ERROR_RATE = 107
+  RUNTIME_FILTER_ERROR_RATE = 108
 }
 
 // The summary of a DML statement.
