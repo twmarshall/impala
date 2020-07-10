@@ -216,6 +216,14 @@ under the License.
           <groupId>org.apache.kafka</groupId>
           <artifactId>kafka_2.12</artifactId>
         </exclusion>
+        <exclusion>
+          <groupId>org.apache.shiro</groupId>
+          <artifactId>shiro-core</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.eclipse.jetty</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
       </exclusions>
     </dependency>
     <!-- this is needed by ranger-plugins-audit -->
@@ -236,6 +244,11 @@ under the License.
       <groupId>javax.mail</groupId>
       <artifactId>mail</artifactId>
       <version>1.4</version>
+    </dependency>
+    <dependency>
+      <groupId>javax.ws.rs</groupId>
+      <artifactId>javax.ws.rs-api</artifactId>
+      <version>2.1.1</version>
     </dependency>
 
     <dependency>
