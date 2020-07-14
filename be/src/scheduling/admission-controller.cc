@@ -134,7 +134,6 @@ const string POOL_CLAMP_MEM_LIMIT_QUERY_OPTION_METRIC_KEY_FORMAT =
 // Profile query events
 const string QUERY_EVENT_SUBMIT_FOR_ADMISSION = "Submit for admission";
 const string QUERY_EVENT_QUEUED = "Queued";
-const string QUERY_EVENT_COMPLETED_ADMISSION = "Completed admission";
 
 // Profile info strings
 const string AdmissionController::PROFILE_INFO_KEY_ADMISSION_RESULT = "Admission result";
@@ -210,7 +209,8 @@ const string REASON_THREAD_RESERVATION_AGG_LIMIT_EXCEEDED =
     "THREAD_RESERVATION_AGGREGATE_LIMIT query option value: $1 > $2.";
 // $0 is the error message returned by the scheduler.
 const string REASON_SCHEDULER_ERROR = "Error during scheduling: $0";
-const string REASON_LOCAL_BACKEND_NOT_STARTED = "Local backend has not started up yet.";
+const string REASON_COORDINATOR_NOT_FOUND =
+    "Coordinator not registered with the statestore yet.";
 const string REASON_NO_EXECUTOR_GROUPS =
     "Waiting for executors to start. Only DDL queries and queries scheduled only on the "
     "coordinator (either NUM_NODES set to 1 or when small query optimization is "
@@ -402,11 +402,11 @@ void AdmissionController::PoolStats::Dequeue(bool timed_out) {
 }
 
 void AdmissionController::UpdateStatsOnReleaseForBackends(const UniqueIdPB& query_id,
-    const RunningQuery& running_query, const vector<NetworkAddressPB>& host_addrs) {
+    const QueryAllocation& query_allocation, const vector<NetworkAddressPB>& host_addrs) {
   int64_t total_mem_to_release = 0;
   for (auto host_addr : host_addrs) {
-    auto backend_allocation = running_query.per_backend_resources.find(host_addr);
-    if (backend_allocation == running_query.per_backend_resources.end()) {
+    auto backend_allocation = query_allocation.per_backend_resources.find(host_addr);
+    if (backend_allocation == query_allocation.per_backend_resources.end()) {
       string err_msg =
           strings::Substitute("Error: Cannot find exec params of host $0 for query $1.",
               NetworkAddressPBToString(host_addr), PrintId(query_id));
@@ -418,9 +418,9 @@ void AdmissionController::UpdateStatsOnReleaseForBackends(const UniqueIdPB& quer
         -backend_allocation->second.slots_to_use);
     total_mem_to_release += backend_allocation->second.mem_to_admit;
   }
-  PoolStats* pool_stats = GetPoolStats(running_query.request_pool);
+  PoolStats* pool_stats = GetPoolStats(query_allocation.request_pool);
   pool_stats->ReleaseMem(total_mem_to_release);
-  pools_for_updates_.insert(running_query.request_pool);
+  pools_for_updates_.insert(query_allocation.request_pool);
 }
 
 void AdmissionController::UpdateStatsOnAdmission(const ScheduleState& state) {
@@ -782,7 +782,11 @@ void AdmissionController::PoolStats::UpdateConfigMetrics(const TPoolConfig& pool
 
 Status AdmissionController::SubmitForAdmission(const AdmissionRequest& request,
     Promise<AdmissionOutcome, PromiseMode::MULTIPLE_PRODUCER>* admit_outcome,
-    unique_ptr<QuerySchedulePB>* schedule_result) {
+    unique_ptr<QuerySchedulePB>* schedule_result,
+    unique_ptr<QueryAllocation>* allocation_result, bool* queued) {
+  *queued = false;
+  LOG(INFO) << "asdf SubmitForAdmission";
+  DebugActionNoFail(request.query_options, "AC_BEFORE_ADMISSION");
   DCHECK(schedule_result->get() == nullptr);
 
   ClusterMembershipMgr::SnapshotPtr membership_snapshot =
@@ -794,32 +798,37 @@ Status AdmissionController::SubmitForAdmission(const AdmissionRequest& request,
   }
 
   // Note the queue_node will not exist in the queue when this method returns.
-  QueueNode queue_node(request, admit_outcome, request.summary_profile);
+  QueueNode* queue_node;
+  {
+    lock_guard<mutex> lock(queue_nodes_lock_);
+    auto it = queue_nodes_.emplace(std::piecewise_construct,
+        std::forward_as_tuple(request.query_id),
+        std::forward_as_tuple(request, admit_outcome, request.summary_profile));
+    if (!it.second) {
+      // The query_id already existed in queue_nodes_.
+      return Status("Cannot submit the same query for admission multiple times.");
+    }
+    queue_node = &it.first->second;
+  }
 
   // Re-resolve the pool name to propagate any resolution errors now that this request is
   // known to require a valid pool. All executor groups / schedules will use the same pool
   // name.
-  string pool_name;
-  TPoolConfig pool_cfg;
-  RETURN_IF_ERROR(
-      ResolvePoolAndGetConfig(request.request.query_ctx, &pool_name, &pool_cfg));
-  request.summary_profile->AddInfoString("Request Pool", pool_name);
+  RETURN_IF_ERROR(ResolvePoolAndGetConfig(
+      request.request.query_ctx, &queue_node->pool_name, &queue_node->pool_cfg));
+  request.summary_profile->AddInfoString("Request Pool", queue_node->pool_name);
 
-  // We track this outside of the queue node so that it is still available after the query
-  // has been dequeued.
-  string initial_queue_reason;
-  ScopedEvent completedEvent(request.query_events, QUERY_EVENT_COMPLETED_ADMISSION);
   {
     // Take lock to ensure the Dequeue thread does not modify the request queue.
     lock_guard<mutex> lock(admission_ctrl_lock_);
     request.query_events->MarkEvent(QUERY_EVENT_SUBMIT_FOR_ADMISSION);
 
-    pool_config_map_[pool_name] = pool_cfg;
-    PoolStats* stats = GetPoolStats(pool_name);
-    stats->UpdateConfigMetrics(pool_cfg);
+    pool_config_map_[queue_node->pool_name] = queue_node->pool_cfg;
+    PoolStats* stats = GetPoolStats(queue_node->pool_name);
+    stats->UpdateConfigMetrics(queue_node->pool_cfg);
 
-    bool must_reject = !FindGroupToAdmitOrReject(
-        membership_snapshot, pool_cfg, /* admit_from_queue=*/false, stats, &queue_node);
+    bool must_reject = !FindGroupToAdmitOrReject(membership_snapshot,
+        queue_node->pool_cfg, /* admit_from_queue=*/false, stats, queue_node);
     if (must_reject) {
       AdmissionOutcome outcome = admit_outcome->Set(AdmissionOutcome::REJECTED);
       if (outcome != AdmissionOutcome::REJECTED) {
@@ -831,15 +840,15 @@ Status AdmissionController::SubmitForAdmission(const AdmissionRequest& request,
       request.summary_profile->AddInfoString(
           PROFILE_INFO_KEY_ADMISSION_RESULT, PROFILE_INFO_VAL_REJECTED);
       stats->metrics()->total_rejected->Increment(1);
-      const ErrorMsg& rejected_msg = ErrorMsg(
-          TErrorCode::ADMISSION_REJECTED, pool_name, queue_node.not_admitted_reason);
+      const ErrorMsg& rejected_msg = ErrorMsg(TErrorCode::ADMISSION_REJECTED,
+          queue_node->pool_name, queue_node->not_admitted_reason);
       VLOG_QUERY << rejected_msg.msg();
       return Status::Expected(rejected_msg);
     }
 
-    if (queue_node.admitted_schedule.get() != nullptr) {
-      DCHECK(queue_node.admitted_schedule->query_schedule_pb().get() != nullptr);
-      const string& group_name = queue_node.admitted_schedule->executor_group();
+    if (queue_node->admitted_schedule.get() != nullptr) {
+      DCHECK(queue_node->admitted_schedule->query_schedule_pb().get() != nullptr);
+      const string& group_name = queue_node->admitted_schedule->executor_group();
       VLOG(3) << "Can admit to group " << group_name << " (or cancelled)";
       DCHECK_EQ(stats->local_stats().num_queued, 0);
       AdmissionOutcome outcome = admit_outcome->Set(AdmissionOutcome::ADMITTED);
@@ -850,134 +859,154 @@ Status AdmissionController::SubmitForAdmission(const AdmissionRequest& request,
         return Status::CANCELLED;
       }
       VLOG_QUERY << "Admitting query id=" << PrintId(request.query_id);
-      AdmitQuery(queue_node.admitted_schedule.get(), false);
+      AdmitQuery(queue_node, false);
       stats->UpdateWaitTime(0);
       VLOG_RPC << "Final: " << stats->DebugString();
-      *schedule_result = move(queue_node.admitted_schedule->query_schedule_pb());
+      *schedule_result = move(queue_node->admitted_schedule->query_schedule_pb());
+      *allocation_result = move(queue_node->admitted_allocation);
       return Status::OK();
     }
 
     // We cannot immediately admit but do not need to reject, so queue the request
-    RequestQueue* queue = &request_queue_map_[pool_name];
+    RequestQueue* queue = &request_queue_map_[queue_node->pool_name];
     VLOG_QUERY << "Queuing, query id=" << PrintId(request.query_id)
-               << " reason: " << queue_node.not_admitted_reason;
-    initial_queue_reason = queue_node.not_admitted_reason;
+               << " reason: " << queue_node->not_admitted_reason;
+    queue_node->initial_queue_reason = queue_node->not_admitted_reason;
     stats->Queue();
-    queue->Enqueue(&queue_node);
+    queue->Enqueue(queue_node);
   }
 
   // Update the profile info before waiting. These properties will be updated with
   // their final state after being dequeued.
+  LOG(INFO) << "asdf adding 'queued' to profile'";
   request.summary_profile->AddInfoString(
       PROFILE_INFO_KEY_ADMISSION_RESULT, PROFILE_INFO_VAL_QUEUED);
   request.summary_profile->AddInfoString(
-      PROFILE_INFO_KEY_INITIAL_QUEUE_REASON, initial_queue_reason);
+      PROFILE_INFO_KEY_INITIAL_QUEUE_REASON, queue_node->initial_queue_reason);
   request.summary_profile->AddInfoString(
-      PROFILE_INFO_KEY_LAST_QUEUED_REASON, queue_node.not_admitted_reason);
+      PROFILE_INFO_KEY_LAST_QUEUED_REASON, queue_node->not_admitted_reason);
   request.query_events->MarkEvent(QUERY_EVENT_QUEUED);
 
-  int64_t queue_wait_timeout_ms = GetQueueTimeoutForPoolMs(pool_cfg);
-  int64_t wait_start_ms = MonotonicMillis();
+  queue_node->wait_start_ms = MonotonicMillis();
+  *queued = true;
+  return Status::OK();
+}
+
+Status AdmissionController::WaitOnQueued(const UniqueIdPB& query_id,
+    unique_ptr<QuerySchedulePB>* schedule_result,
+    unique_ptr<QueryAllocation>* allocation_result, int64_t timeout_ms,
+    bool* wait_timed_out) {
+  if (wait_timed_out != nullptr) *wait_timed_out = false;
+
+  QueueNode* queue_node;
+  {
+    lock_guard<mutex> lock(queue_nodes_lock_);
+    auto it = queue_nodes_.find(query_id);
+    if (it == queue_nodes_.end()) {
+      return Status(
+          Substitute("WaitOnQueued failed: unknown query_id=$0", PrintId(query_id)));
+    }
+    queue_node = &it->second;
+  }
+
+  int64_t queue_wait_timeout_ms = GetQueueTimeoutForPoolMs(queue_node->pool_cfg);
 
   // Block in Get() up to the time out, waiting for the promise to be set when the query
   // is admitted or cancelled.
-  bool timed_out;
-  admit_outcome->Get(queue_wait_timeout_ms, &timed_out);
-  int64_t wait_time_ms = MonotonicMillis() - wait_start_ms;
-  request.summary_profile->AddInfoString(PROFILE_INFO_KEY_INITIAL_QUEUE_REASON,
-      Substitute(
-          PROFILE_INFO_VAL_INITIAL_QUEUE_REASON, wait_time_ms, initial_queue_reason));
+  bool get_timed_out = false;
+  queue_node->admit_outcome->Get(
+      (timeout_ms > 0 ? min(queue_wait_timeout_ms, timeout_ms) : queue_wait_timeout_ms),
+      &get_timed_out);
+  int64_t wait_time_ms = MonotonicMillis() - queue_node->wait_start_ms;
+
+  queue_node->profile->AddInfoString(PROFILE_INFO_KEY_INITIAL_QUEUE_REASON,
+      Substitute(PROFILE_INFO_VAL_INITIAL_QUEUE_REASON, wait_time_ms,
+          queue_node->initial_queue_reason));
+
+  if (get_timed_out && wait_time_ms < queue_wait_timeout_ms) {
+    if (wait_timed_out != nullptr) *wait_timed_out = true;
+    // No admission decision has been made yet, so just return.
+    return Status::OK();
+  }
 
   // Disallow the FAIL action here. It would leave the queue in an inconsistent state.
-  DebugActionNoFail(request.query_options, "AC_AFTER_ADMISSION_OUTCOME");
+  DebugActionNoFail(
+      queue_node->admission_request.query_options, "AC_AFTER_ADMISSION_OUTCOME");
 
   {
     lock_guard<mutex> lock(admission_ctrl_lock_);
     // If the query has not been admitted or cancelled up till now, it will be considered
     // to be timed out.
-    AdmissionOutcome outcome = admit_outcome->Set(AdmissionOutcome::TIMED_OUT);
-    RequestQueue* queue = &request_queue_map_[pool_name];
-    pools_for_updates_.insert(pool_name);
-    PoolStats* pool_stats = GetPoolStats(pool_name);
+    AdmissionOutcome outcome =
+        queue_node->admit_outcome->Set(AdmissionOutcome::TIMED_OUT);
+    RequestQueue* queue = &request_queue_map_[queue_node->pool_name];
+    pools_for_updates_.insert(queue_node->pool_name);
+    PoolStats* pool_stats = GetPoolStats(queue_node->pool_name);
     pool_stats->UpdateWaitTime(wait_time_ms);
     if (outcome == AdmissionOutcome::REJECTED) {
-      if (queue->Remove(&queue_node)) pool_stats->Dequeue(true);
-      request.summary_profile->AddInfoString(
+      if (queue->Remove(queue_node)) pool_stats->Dequeue(true);
+      queue_node->profile->AddInfoString(
           PROFILE_INFO_KEY_ADMISSION_RESULT, PROFILE_INFO_VAL_REJECTED);
-      const ErrorMsg& rejected_msg = ErrorMsg(
-          TErrorCode::ADMISSION_REJECTED, pool_name, queue_node.not_admitted_reason);
+      const ErrorMsg& rejected_msg = ErrorMsg(TErrorCode::ADMISSION_REJECTED,
+          queue_node->pool_name, queue_node->not_admitted_reason);
       VLOG_QUERY << rejected_msg.msg();
       return Status::Expected(rejected_msg);
     } else if (outcome == AdmissionOutcome::TIMED_OUT) {
-      bool removed = queue->Remove(&queue_node);
+      bool removed = queue->Remove(queue_node);
       DCHECK(removed);
       pool_stats->Dequeue(true);
-      request.summary_profile->AddInfoString(
+      queue_node->profile->AddInfoString(
           PROFILE_INFO_KEY_ADMISSION_RESULT, PROFILE_INFO_VAL_TIME_OUT);
       const ErrorMsg& rejected_msg = ErrorMsg(TErrorCode::ADMISSION_TIMED_OUT,
-          queue_wait_timeout_ms, pool_name, queue_node.not_admitted_reason);
+          queue_wait_timeout_ms, queue_node->pool_name, queue_node->not_admitted_reason);
       VLOG_QUERY << rejected_msg.msg();
       return Status::Expected(rejected_msg);
     } else if (outcome == AdmissionOutcome::CANCELLED) {
-      if (queue->Remove(&queue_node)) pool_stats->Dequeue(false);
-      request.summary_profile->AddInfoString(
+      if (queue->Remove(queue_node)) {
+        pool_stats->Dequeue(false);
+      }
+      queue_node->profile->AddInfoString(
           PROFILE_INFO_KEY_ADMISSION_RESULT, PROFILE_INFO_VAL_CANCELLED_IN_QUEUE);
       VLOG_QUERY << PROFILE_INFO_VAL_CANCELLED_IN_QUEUE
-                 << ", query id=" << PrintId(request.query_id);
+                 << ", query id=" << PrintId(query_id);
       return Status::CANCELLED;
     }
     // The dequeue thread updates the stats (to avoid a race condition) so we do
     // not change them here.
     DCHECK_ENUM_EQ(outcome, AdmissionOutcome::ADMITTED);
-    DCHECK(queue_node.admitted_schedule.get() != nullptr);
-    *schedule_result = move(queue_node.admitted_schedule->query_schedule_pb());
-    DCHECK(!queue->Contains(&queue_node));
-    VLOG_QUERY << "Admitted queued query id=" << PrintId(request.query_id);
+    DCHECK(queue_node->admitted_schedule.get() != nullptr);
+    *schedule_result = move(queue_node->admitted_schedule->query_schedule_pb());
+    *allocation_result = move(queue_node->admitted_allocation);
+    DCHECK(!queue->Contains(queue_node));
+    VLOG_QUERY << "Admitted queued query id=" << PrintId(query_id);
     VLOG_RPC << "Final: " << pool_stats->DebugString();
     return Status::OK();
   }
 }
 
-void AdmissionController::ReleaseQuery(
-    const UniqueIdPB& query_id, int64_t peak_mem_consumption) {
+void AdmissionController::ReleaseQuery(const UniqueIdPB& query_id,
+    int64_t peak_mem_consumption, const QueryAllocation& query_allocation) {
   {
     lock_guard<mutex> lock(admission_ctrl_lock_);
-    auto it = running_queries_.find(query_id);
-    if (it == running_queries_.end()) {
-      LOG(DFATAL) << "Unable to find resources to release for query "
-                  << PrintId(query_id);
-      return;
-    }
-
-    const RunningQuery& running_query = it->second;
     DCHECK_EQ(num_released_backends_.at(query_id), 0) << PrintId(query_id);
     num_released_backends_.erase(num_released_backends_.find(query_id));
-    PoolStats* stats = GetPoolStats(running_query.request_pool);
+    PoolStats* stats = GetPoolStats(query_allocation.request_pool);
     stats->ReleaseQuery(peak_mem_consumption);
     // No need to update the Host Stats as they should have been updated in
     // ReleaseQueryBackends.
-    pools_for_updates_.insert(running_query.request_pool);
-    UpdateExecGroupMetric(running_query.executor_group, -1);
+    pools_for_updates_.insert(query_allocation.request_pool);
+    UpdateExecGroupMetric(query_allocation.executor_group, -1);
     VLOG_RPC << "Released query id=" << PrintId(query_id) << " " << stats->DebugString();
     pending_dequeue_ = true;
-    running_queries_.erase(it);
   }
   dequeue_cv_.NotifyOne();
 }
 
-void AdmissionController::ReleaseQueryBackends(
-    const UniqueIdPB& query_id, const vector<NetworkAddressPB>& host_addrs) {
+void AdmissionController::ReleaseQueryBackends(const UniqueIdPB& query_id,
+    const vector<NetworkAddressPB>& host_addrs, const QueryAllocation& query_allocation) {
   {
     lock_guard<mutex> lock(admission_ctrl_lock_);
-    auto it = running_queries_.find(query_id);
-    if (it == running_queries_.end()) {
-      LOG(DFATAL) << "Unable to find resources to release for query backends "
-                  << PrintId(query_id);
-      return;
-    }
-
-    const RunningQuery& running_query = it->second;
-    UpdateStatsOnReleaseForBackends(query_id, running_query, host_addrs);
+    UpdateStatsOnReleaseForBackends(query_id, query_allocation, host_addrs);
 
     // Update num_released_backends_.
     auto released_backends = num_released_backends_.find(query_id);
@@ -995,7 +1024,7 @@ void AdmissionController::ReleaseQueryBackends(
       ss << "Released query backend(s) ";
       for (auto host_addr : host_addrs) ss << host_addr << " ";
       ss << "for query id=" << PrintId(query_id) << " "
-         << GetPoolStats(running_query.request_pool)->DebugString();
+         << GetPoolStats(query_allocation.request_pool)->DebugString();
       VLOG(2) << ss.str();
     }
     pending_dequeue_ = true;
@@ -1026,7 +1055,7 @@ void AdmissionController::UpdatePoolStats(
       // we first clear the backend TPoolStats. We then update the global map
       // and then re-compute the pool stats for any pools that changed.
       if (!delta.is_delta) {
-        VLOG_ROW << "Full impala-request-queue stats update";
+        // VLOG_ROW << "Full impala-request-queue stats update";
         for (auto& entry : pool_stats_) entry.second.ClearRemoteStats();
       }
       HandleTopicUpdates(delta.topic_entries);
@@ -1183,15 +1212,19 @@ Status AdmissionController::ComputeGroupScheduleStates(
   std::vector<GroupScheduleState>* output_schedules = &queue_node->group_states;
   output_schedules->clear();
 
-  // If the first statestore update arrives before the local backend has finished starting
-  // up, we might not have a local backend descriptor yet. We return no schedules, which
-  // will result in the query being queued.
-  if (membership_snapshot->local_be_desc == nullptr) {
-    queue_node->not_admitted_reason = REASON_LOCAL_BACKEND_NOT_STARTED;
+  // Queries may arrive before we've gotten a statestore update containing the descriptor
+  // for their coordinator, in which case we queue the query until it arrives. Its also
+  // possible (though very unlikely) that the coordinator was removed from the cluster
+  // membsrship after submitting this query for admission. Currently in this case the
+  // query will remain queued until it times out, but we can consider detecting failed
+  // coordinators and cleaning up their queued queries.
+  auto it = membership_snapshot->current_backends.find(PrintId(request.coord_id));
+  if (it == membership_snapshot->current_backends.end()) {
+    queue_node->not_admitted_reason = REASON_COORDINATOR_NOT_FOUND;
     LOG(WARNING) << queue_node->not_admitted_reason;
     return Status::OK();
   }
-  const BackendDescriptorPB& local_be_desc = *membership_snapshot->local_be_desc;
+  const BackendDescriptorPB& coord_desc = it->second;
 
   vector<const ExecutorGroup*> executor_groups =
       GetExecutorGroupsForQuery(membership_snapshot->executor_groups, request);
@@ -1216,7 +1249,7 @@ Status AdmissionController::ComputeGroupScheduleStates(
     const string& group_name = executor_group->name();
     VLOG(3) << "Scheduling for executor group: " << group_name << " with "
             << executor_group->NumExecutors() << " executors";
-    const Scheduler::ExecutorConfig group_config = {*executor_group, local_be_desc};
+    const Scheduler::ExecutorConfig group_config = {*executor_group, coord_desc};
     RETURN_IF_ERROR(
         ExecEnv::GetInstance()->scheduler()->Schedule(group_config, group_state.get()));
     DCHECK(!group_state->executor_group().empty());
@@ -1430,7 +1463,7 @@ void AdmissionController::DequeueLoop() {
         DCHECK(!is_cancelled);
         DCHECK(!is_rejected);
         DCHECK(queue_node->admitted_schedule != nullptr);
-        AdmitQuery(queue_node->admitted_schedule.get(), true);
+        AdmitQuery(queue_node, true);
       }
       pools_for_updates_.insert(pool_name);
     }
@@ -1502,7 +1535,8 @@ AdmissionController::PoolStats* AdmissionController::GetPoolStats(
   return &it->second;
 }
 
-void AdmissionController::AdmitQuery(ScheduleState* state, bool was_queued) {
+void AdmissionController::AdmitQuery(QueueNode* node, bool was_queued) {
+  ScheduleState* state = node->admitted_schedule.get();
   VLOG_RPC << "For Query " << PrintId(state->query_id())
            << " per_backend_mem_limit set to: "
            << PrintBytes(state->per_backend_mem_limit())
@@ -1540,12 +1574,12 @@ void AdmissionController::AdmitQuery(ScheduleState* state, bool was_queued) {
   num_released_backends_[state->query_id()] = state->per_backend_schedule_states().size();
 
   // Store info about the admitted resources so that we can release them.
-  DCHECK(running_queries_.find(state->query_id()) == running_queries_.end());
-  RunningQuery& running_query = running_queries_[state->query_id()];
-  running_query.request_pool = state->request_pool();
-  running_query.executor_group = state->executor_group();
+  node->admitted_allocation.reset(new QueryAllocation());
+  node->admitted_allocation->request_pool = state->request_pool();
+  node->admitted_allocation->executor_group = state->executor_group();
   for (const auto& entry : state->per_backend_schedule_states()) {
-    BackendAllocation& allocation = running_query.per_backend_resources[entry.first];
+    BackendAllocation& allocation =
+        node->admitted_allocation->per_backend_resources[entry.first];
     allocation.slots_to_use = entry.second.exec_params->slots_to_use();
     allocation.mem_to_admit = GetMemToAdmit(*state, entry.second);
   }

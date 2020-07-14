@@ -224,6 +224,7 @@ def build_ignore_dir_arg_list(valid_dirs):
 
 
 def print_metrics(substring):
+  return
   """Prints metrics with the given substring in the name"""
   for impalad in ImpalaCluster.get_e2e_test_cluster().impalads:
     print ">" * 80
@@ -313,7 +314,7 @@ if __name__ == "__main__":
     # Run the stress tests tests
     if not skip_stress:
       base_args = ['-m', 'stress', '-n', NUM_STRESS_CLIENTS]
-      run(base_args + build_test_args("stress{0}".format(shard_identifier)))
+      #run(base_args + build_test_args("stress{0}".format(shard_identifier)))
       print_metrics('connections')
 
     # Run the remaining query tests in parallel
@@ -331,7 +332,7 @@ if __name__ == "__main__":
     args = build_test_args(base_name="verify-metrics{0}".format(shard_identifier),
                            valid_dirs=['verifiers'])
     args.append('verifiers/test_verify_metrics.py')
-    run(args)
+    #run(args)
 
   if test_executor.tests_failed:
     sys.exit(1)

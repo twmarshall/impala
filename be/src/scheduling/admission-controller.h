@@ -317,10 +317,34 @@ class AdmissionController {
   /// are owned by the ClientRequestState).
   struct AdmissionRequest {
     const UniqueIdPB& query_id;
+    const UniqueIdPB& coord_id;
     const TQueryExecRequest& request;
     const TQueryOptions& query_options;
     RuntimeProfile* summary_profile;
     RuntimeProfile::EventSequence* query_events;
+  };
+
+  /// Container for info about the resources allocated to a query on a single backend.
+  struct BackendAllocation {
+    /// Number of admission control slots this query is using.
+    int32_t slots_to_use;
+
+    /// Amount of memory allocated to this query. This will be equal to
+    /// ScheduleState::coord_backend_mem_to_admit() if this is the coordinator backend, or
+    /// ScheduleState::per_backend_mem_to_admit() otherwise.
+    int64_t mem_to_admit;
+  };
+
+  /// Container for info about the resources allocated to a currently running query.
+  struct QueryAllocation {
+    /// The request pool this query was scheduled on.
+    std::string request_pool;
+
+    /// The executor group this query was scheduled on.
+    std::string executor_group;
+
+    /// Map from backend addresses to the resouces this query was allocated on them.
+    std::unordered_map<NetworkAddressPB, BackendAllocation> per_backend_resources;
   };
 
   /// Submits the request for admission. May returns immediately if rejected, but
@@ -335,14 +359,21 @@ class AdmissionController {
   /// cancelled to ensure that the pool statistics are updated.
   Status SubmitForAdmission(const AdmissionRequest& request,
       Promise<AdmissionOutcome, PromiseMode::MULTIPLE_PRODUCER>* admit_outcome,
-      std::unique_ptr<QuerySchedulePB>* schedule_result);
+      std::unique_ptr<QuerySchedulePB>* schedule_result,
+      std::unique_ptr<QueryAllocation>* allocation_result, bool* queued);
+
+  Status WaitOnQueued(const UniqueIdPB& query_id,
+      std::unique_ptr<QuerySchedulePB>* schedule_result,
+      std::unique_ptr<QueryAllocation>* allocation_result, int64_t timeout_ms = 0,
+      bool* wait_timed_out = nullptr);
 
   /// Updates the pool statistics when a query completes (either successfully,
   /// is cancelled or failed). This should be called for all requests that have
   /// been submitted via AdmitQuery(). 'query_id' is the completed query and
   /// 'peak_mem_consumption' is the peak memory consumption of the query.
   /// This does not block.
-  void ReleaseQuery(const UniqueIdPB& query_id, int64_t peak_mem_consumption);
+  void ReleaseQuery(const UniqueIdPB& query_id, int64_t peak_mem_consumption,
+      const QueryAllocation& query_allocation);
 
   /// Updates the pool statistics when a Backend running a query completes (either
   /// successfully, is cancelled or failed). This should be called for all Backends part
@@ -350,8 +381,8 @@ class AdmissionController {
   /// 'query_id' is the associated query and the vector of NetworkAddressPBs identify the
   /// completed Backends.
   /// This does not block.
-  void ReleaseQueryBackends(
-      const UniqueIdPB& query_id, const vector<NetworkAddressPB>& host_addr);
+  void ReleaseQueryBackends(const UniqueIdPB& query_id,
+      const vector<NetworkAddressPB>& host_addr, const QueryAllocation& query_allocation);
 
   /// Registers the request queue topic with the statestore, starts up the dequeue thread
   /// and registers a callback with the cluster membership manager to receive updates for
@@ -669,6 +700,9 @@ class AdmissionController {
     /// Profile to be updated with information about admission.
     RuntimeProfile* profile;
 
+    string pool_name;
+    TPoolConfig pool_cfg;
+
     /// END: Members that are valid for new objects after initialization
     /////////////////////////////////////////
 
@@ -687,6 +721,9 @@ class AdmissionController {
     /// END: Members that are only valid while queued, but invalid once dequeued.
     /////////////////////////////////////////
 
+    string initial_queue_reason;
+    int64_t wait_start_ms;
+
     /////////////////////////////////////////
     /// BEGIN: Members that are valid after admission / cancellation / rejection
 
@@ -700,9 +737,15 @@ class AdmissionController {
     /// not been admitted or was cancelled or rejected.
     std::unique_ptr<ScheduleState> admitted_schedule = nullptr;
 
+    std::unique_ptr<QueryAllocation> admitted_allocation = nullptr;
+
     /// END: Members that are valid after admission / cancellation / rejection
     /////////////////////////////////////////
   };
+
+  std::mutex queue_nodes_lock_;
+
+  std::unordered_map<UniqueIdPB, QueueNode> queue_nodes_;
 
   /// Queue for the queries waiting to be admitted for execution. Once the
   /// maximum number of concurrently executing queries has been reached,
@@ -712,35 +755,6 @@ class AdmissionController {
   /// Map of pool names to request queues.
   typedef boost::unordered_map<std::string, RequestQueue> RequestQueueMap;
   RequestQueueMap request_queue_map_;
-
-  /// Container for info about the resources allocated to a query on a single backend.
-  struct BackendAllocation {
-    /// Number of admission control slots this query is using.
-    int32_t slots_to_use;
-
-    /// Amount of memory allocated to this query. This will be equal to
-    /// ScheduleState::coord_backend_mem_to_admit() if this is the coordinator backend, or
-    /// ScheduleState::per_backend_mem_to_admit() otherwise.
-    int64_t mem_to_admit;
-  };
-
-  /// Container for info about the resources allocated to a currently running query.
-  struct RunningQuery {
-    /// The request pool this query was scheduled on.
-    std::string request_pool;
-
-    /// The executor group this query was scheduled on.
-    std::string executor_group;
-
-    /// Map from backend addresses to the resouces this query was allocated on them.
-    std::unordered_map<NetworkAddressPB, BackendAllocation> per_backend_resources;
-  };
-
-  /// Map from query id of currently running queries to information about the resources
-  /// that were allocated to them. Used to properly account for resources when releasing
-  /// queries.
-  /// Protected by admission_ctrl_lock_.
-  std::unordered_map<UniqueIdPB, RunningQuery> running_queries_;
 
   /// Map of pool names to the pool configs returned by request_pool_service_. Stored so
   /// that the dequeue thread does not need to access the configs via the request pool
@@ -867,7 +881,8 @@ class AdmissionController {
   /// specified in 'host_addrs'. Also updates the stats related to the admitted memory of
   /// its associated resource pool.
   void UpdateStatsOnReleaseForBackends(const UniqueIdPB& query_id,
-      const RunningQuery& running_query, const std::vector<NetworkAddressPB>& host_addrs);
+      const QueryAllocation& query_allocation,
+      const std::vector<NetworkAddressPB>& host_addrs);
 
   /// Updates the memory admitted and the num of queries running on the specified host by
   /// adding the specified mem, num_queries and slots to the host stats.
@@ -929,7 +944,7 @@ class AdmissionController {
   /// Sets the per host mem limit and mem admitted in the schedule and does the necessary
   /// accounting and logging on successful submission.
   /// Caller must hold 'admission_ctrl_lock_'.
-  void AdmitQuery(ScheduleState* state, bool was_queued);
+  void AdmitQuery(QueueNode* node, bool was_queued);
 
   /// Same as PoolToJson() but requires 'admission_ctrl_lock_' to be held by the caller.
   /// Is a helper method used by both PoolToJson() and AllPoolsToJson()

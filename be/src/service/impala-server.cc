@@ -2057,7 +2057,13 @@ void ImpalaServer::QueryStateRecord::Init(const ClientRequestState& query_handle
   num_rows_fetched = query_handle.num_rows_fetched();
   query_status = query_handle.query_status();
 
-  query_handle.query_events()->ToThrift(&event_sequence);
+  RuntimeProfile::EventSequence* admission_events =
+      query_handle.summary_profile()->GetEventSequence("Admission Control Timeline");
+  if (admission_events == nullptr) {
+    query_handle.query_events()->ToThrift(&event_sequence);
+  } else {
+    admission_events->ToThrift(&event_sequence);
+  }
 
   // Save the query fragments so that the plan can be visualised.
   for (const TPlanExecInfo& plan_exec_info:

@@ -36,6 +36,7 @@
 #include "runtime/query-state.h"
 #include "runtime/timestamp-value.h"
 #include "runtime/timestamp-value.inline.h"
+#include "scheduling/admission-control-service.h"
 #include "scheduling/admission-controller.h"
 #include "scheduling/cluster-membership-mgr.h"
 #include "service/client-request-state.h"
@@ -64,6 +65,7 @@ using namespace strings;
 DECLARE_int32(query_log_size);
 DECLARE_int32(query_stmt_size);
 DECLARE_bool(use_local_catalog);
+DECLARE_bool(is_admission_controller);
 
 namespace {
 
@@ -1064,22 +1066,44 @@ void ImpalaHttpHandler::AdmissionStateHandler(
     unsigned long num_backends;
   };
   unordered_map<string, vector<QueryInfo>> running_queries;
-  server_->query_driver_map_.DoFuncForAllEntries([&running_queries](
-      const std::shared_ptr<QueryDriver>& query_driver) {
-    // Make sure only queries past admission control are added.
-    ClientRequestState* request_state = query_driver->GetActiveClientRequestState();
-    auto query_state = request_state->exec_state();
-    if (query_state != ClientRequestState::ExecState::INITIALIZED
-        && query_state != ClientRequestState::ExecState::PENDING
-        && request_state->schedule() != nullptr)
-      running_queries[request_state->request_pool()].push_back(
-          {request_state->query_id(), request_state->schedule()->per_backend_mem_limit(),
-              request_state->schedule()->per_backend_mem_to_admit(),
-              request_state->schedule()->coord_backend_mem_limit(),
-              request_state->schedule()->coord_backend_mem_to_admit(),
-              static_cast<unsigned long>(
-                  request_state->schedule()->backend_exec_params().size())});
-  });
+  if (FLAGS_is_admission_controller) {
+    ExecEnv::GetInstance()
+        ->admission_control_service()
+        ->query_info_map_.DoFuncForAllEntries(
+            [&running_queries](
+                const std::shared_ptr<AdmissionControlService::QueryInfo>& query_info) {
+              if (query_info->schedule.get() != nullptr) {
+                TUniqueId query_id;
+                UniqueIdPBToTUniqueId(query_info->query_id, &query_id);
+                QueryInfo info();
+                running_queries[query_info->allocation->request_pool].push_back(
+                    {query_id, query_info->schedule->per_backend_mem_limit(),
+                        query_info->schedule->per_backend_mem_to_admit(),
+                        query_info->schedule->coord_backend_mem_limit(),
+                        query_info->schedule->coord_backend_mem_to_admit(),
+                        static_cast<unsigned long>(
+                            query_info->schedule->backend_exec_params().size())});
+              };
+            });
+  } else {
+    server_->query_driver_map_.DoFuncForAllEntries(
+        [&running_queries](const std::shared_ptr<QueryDriver>& query_driver) {
+          // Make sure only queries past admission control are added.
+          ClientRequestState* request_state = query_driver->GetActiveClientRequestState();
+          auto query_state = request_state->exec_state();
+          if (query_state != ClientRequestState::ExecState::INITIALIZED
+              && query_state != ClientRequestState::ExecState::PENDING
+              && request_state->schedule() != nullptr)
+            running_queries[request_state->request_pool()].push_back(
+                {request_state->query_id(),
+                    request_state->schedule()->per_backend_mem_limit(),
+                    request_state->schedule()->per_backend_mem_to_admit(),
+                    request_state->schedule()->coord_backend_mem_limit(),
+                    request_state->schedule()->coord_backend_mem_to_admit(),
+                    static_cast<unsigned long>(
+                        request_state->schedule()->backend_exec_params().size())});
+        });
+  }
 
   // Add the running queries to the resource_pools json.
   for (int i = 0; i < resource_pools.Size(); i++) {
