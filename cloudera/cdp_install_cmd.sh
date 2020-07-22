@@ -49,9 +49,29 @@ function unpack_into_directory {
   tar -zxf ${TARBALL} --strip-components=1 -C ${OUTPUT_DIR}
 }
 
+# Define the directories we will use. These use names that should never be used by
+# any other part of the build.
+ATLAS_DIRECTORY=${SOURCE_ROOT}/atlas_for_impala
+HADOOP_DIRECTORY=${SOURCE_ROOT}/hadoop_for_impala
+HIVE_DIRECTORY=${SOURCE_ROOT}/hive_for_impala
+KUDU_DIRECTORY=${SOURCE_ROOT}/kudu_for_impala
+KUDU_BINARY_DIRECTORY=${SOURCE_ROOT}/kudu_binary_for_impala
+# Remove them if they exist
+rm -rf $ATLAS_DIRECTORY
+rm -rf $HADOOP_DIRECTORY
+rm -rf $HIVE_DIRECTORY
+rm -rf $KUDU_DIRECTORY
+rm -rf $KUDU_BINARY_DIRECTORY
+# Make directories
+mkdir $ATLAS_DIRECTORY
+mkdir $HADOOP_DIRECTORY
+mkdir $HIVE_DIRECTORY
+mkdir $KUDU_DIRECTORY
+mkdir $KUDU_BINARY_DIRECTORY
+
 # Export ATLAS_HOOK_DIR_OVERRIDE before sourcing bin/impala-config.sh to set up
 # ATLAS_HOOK_DIR in the CDP build.
-export ATLAS_HOOK_DIR_OVERRIDE="${SOURCE_ROOT}/atlas"
+export ATLAS_HOOK_DIR_OVERRIDE="${ATLAS_DIRECTORY}"
 
 # Sourcing bin/impala-config.sh gets us all the versions (set by the text-replace section
 # in CDPD/components.ini).
@@ -111,8 +131,7 @@ export CCACHE_NOHASHDIR="true"
 
 # Step 1: Build Kudu with Impala's native toolchain
 echo "### Building Kudu with Impala's native toolchain ###"
-export KUDU_HOME="${SOURCE_ROOT}/kudu_for_impala"
-mkdir -p ${KUDU_HOME}
+export KUDU_HOME="${KUDU_DIRECTORY}"
 unpack_into_directory "$KUDU_SOURCE_TARBALL" ${KUDU_HOME}
 export DEPENDENCY_URL='http://cloudera-thirdparty-libs.s3.amazonaws.com'
 export KUDU_FOR_IMPALA_OUTPUT_DIR="${KUDU_HOME}"
@@ -128,13 +147,12 @@ export KUDU_BUILD_DIR="/"
 # Step 2: Unpack Hive, Hadoop dependency tarballs. These are used to satisfy Impala's
 #         backend C++/thrift dependencies
 echo "### Unpacking Hive, Hadoop dependency tarballs ###"
-mkdir ${SOURCE_ROOT}/hive ${SOURCE_ROOT}/hadoop ${SOURCE_ROOT}/atlas
-unpack_into_directory "$HIVE_SOURCE_TARBALL" ${SOURCE_ROOT}/hive
-unpack_into_directory "$HADOOP_BINARY_TARBALL" ${SOURCE_ROOT}/hadoop
-unpack_into_directory "$ATLAS_HOOK_TARBALL" ${SOURCE_ROOT}/atlas
-export HIVE_SRC_DIR_OVERRIDE="${SOURCE_ROOT}/hive"
-export HADOOP_INCLUDE_DIR_OVERRIDE="${SOURCE_ROOT}/hadoop/include"
-export HADOOP_LIB_DIR_OVERRIDE="${SOURCE_ROOT}/hadoop/lib"
+unpack_into_directory "$HIVE_SOURCE_TARBALL" ${HIVE_DIRECTORY}
+unpack_into_directory "$HADOOP_BINARY_TARBALL" ${HADOOP_DIRECTORY}
+unpack_into_directory "$ATLAS_HOOK_TARBALL" ${ATLAS_DIRECTORY}
+export HIVE_SRC_DIR_OVERRIDE="${HIVE_DIRECTORY}"
+export HADOOP_INCLUDE_DIR_OVERRIDE="${HADOOP_DIRECTORY}/include"
+export HADOOP_LIB_DIR_OVERRIDE="${HADOOP_DIRECTORY}/lib"
 
 # Step 3: Build Impala
 echo "### Building Impala ###"
@@ -185,9 +203,13 @@ mv ${KUDU_HOME}/ccache-log-kudu-for-impala.txt .
 # Step 8: Make Kudu jars tarball by copying kudu-hive jars out of the regular Kudu
 #         binary tarball
 echo "### Building Kudu-jars tarball ###"
-KUDU_BINARY_HOME=${SOURCE_ROOT}/kudu_binary
+KUDU_BINARY_HOME=${KUDU_BINARY_DIRECTORY}
+# The Kudu jars directory name is used for the tarball (and uses the Kudu version),
+# so it is an exception to the *_for_impala naming. This is unique, so it can use
+# similar logic.
 KUDU_JARS_DIR=${SOURCE_ROOT}/kudu-jars-${IMPALA_KUDU_VERSION}
-mkdir -p ${KUDU_BINARY_HOME} ${KUDU_JARS_DIR}
+rm -rf ${KUDU_JARS_DIR}
+mkdir -p ${KUDU_JARS_DIR}
 unpack_into_directory "$KUDU_BINARY_TARBALL" ${KUDU_BINARY_HOME}
 cp ${KUDU_BINARY_HOME}/java/kudu-hive*.jar ${KUDU_JARS_DIR}
 tar --use-compress-program pigz -cf ./kudu-jars-${IMPALA_KUDU_VERSION}.tar.gz \
