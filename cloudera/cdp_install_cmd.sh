@@ -133,6 +133,20 @@ export CCACHE_NOHASHDIR="true"
 echo "### Building Kudu with Impala's native toolchain ###"
 export KUDU_HOME="${KUDU_DIRECTORY}"
 unpack_into_directory "$KUDU_SOURCE_TARBALL" ${KUDU_HOME}
+# We use the patched Kudu source (i.e. one where CDPD's text-replace commands have
+# already run). For non-SNAPSHOT builds, that means that the versions have been
+# replaced with specific versions (see CDPD-15076). However, it also means that
+# repositoryUrl and gbnUrl have also been replaced. Different phases/types of CDP
+# builds use different values, and some are not compatible (e.g. reference
+# an IP address visible only from one phase and not another, etc). The kudu_repo_urls.sh
+# script defines the KUDU_REPO_URL and KUDU_GBN_URL variables that are replaced with
+# the correct respository URLS at the start of the build. We use those variables to
+# update the locations in the Kudu source.
+source ./cloudera/kudu_repo_urls.sh
+pushd ${KUDU_HOME}
+sed -i "s#repositoryUrl=.*#repositoryUrl=${KUDU_REPO_URL}#" java/gradle.properties
+sed -i "s#gbnUrl=.*#gbnUrl=${KUDU_GBN_URL}#" java/gradle.properties
+popd
 export DEPENDENCY_URL='http://cloudera-thirdparty-libs.s3.amazonaws.com'
 export KUDU_FOR_IMPALA_OUTPUT_DIR="${KUDU_HOME}"
 time ./cloudera/build-kudu-for-impala.sh
