@@ -75,6 +75,13 @@ if [ "${USE_KERBEROS}" == "true" ]; then
   EXTRA_ARGS+=(-skip_internal_kerberos_auth=true -skip_external_kerberos_auth=true)
 fi
 
+# IMPALA-10006: avoid cryptic failures if log dir isn't writable.
+LOG_DIR=$IMPALA_HOME/logs
+if [[ ! -w "$LOG_DIR" ]]; then
+  echo "$LOG_DIR is not writable"
+  exit 1
+fi
+
 # Set ulimit core file size 0.
 ulimit -c 0
 
