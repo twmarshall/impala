@@ -934,6 +934,10 @@ Status impala::SetQueryOption(const string& key, const string& value,
         query_options->__set_max_fs_writers(max_fs_writers);
         break;
       }
+      case TImpalaQueryOptions::REFRESH_UPDATED_HMS_PARTITIONS: {
+        query_options->__set_refresh_updated_hms_partitions(IsTrue(value));
+        break;
+      }
       case TImpalaQueryOptions::RUNTIME_FILTER_ERROR_RATE: {
         StringParser::ParseResult result;
         const double val =

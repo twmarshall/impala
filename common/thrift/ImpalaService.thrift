@@ -552,9 +552,16 @@ enum TImpalaQueryOptions {
   // insert. Currently this limit only applies to HDFS inserts.
   MAX_FS_WRITERS = 107
 
+  // When this query option is set, a refresh table statement will detect existing
+  // partitions which have been changed in metastore and refresh them. By default, this
+  // option is disabled since there is additional performance hit to fetch all the
+  // partitions and detect if they are not same as ones in the catalogd. Currently, this
+  // option is only applicable for refresh table statement.
+  REFRESH_UPDATED_HMS_PARTITIONS = 108
+
   // A value (0.0, 1.0) that is the target false positive probability for runtime bloom
   // filters. If not set, falls back to max_filter_error_rate.
-  RUNTIME_FILTER_ERROR_RATE = 108
+  RUNTIME_FILTER_ERROR_RATE = 109
 }
 
 // The summary of a DML statement.
