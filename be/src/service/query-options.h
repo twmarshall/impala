@@ -209,6 +209,8 @@ typedef std::unordered_map<string, beeswax::TQueryOptionLevel::type>
   QUERY_OPT_FN(max_fs_writers, MAX_FS_WRITERS, TQueryOptionLevel::ADVANCED)\
   QUERY_OPT_FN(refresh_updated_hms_partitions,\
       REFRESH_UPDATED_HMS_PARTITIONS, TQueryOptionLevel::ADVANCED)\
+  QUERY_OPT_FN(spool_all_results_for_retries, SPOOL_ALL_RESULTS_FOR_RETRIES, \
+      TQueryOptionLevel::ADVANCED)\
   QUERY_OPT_FN(runtime_filter_error_rate, RUNTIME_FILTER_ERROR_RATE,  \
       TQueryOptionLevel::ADVANCED)\
   ;

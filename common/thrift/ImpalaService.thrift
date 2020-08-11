@@ -559,9 +559,18 @@ enum TImpalaQueryOptions {
   // option is only applicable for refresh table statement.
   REFRESH_UPDATED_HMS_PARTITIONS = 108
 
+  // If RETRY_FAILED_QUERIES and SPOOL_QUERY_RESULTS are enabled and this is true,
+  // retryable queries will try to spool all results before returning any to the client.
+  // If the result set is too large to fit into the spooling memory (including the spill
+  // mem), results will be returned and the query will not be retryable. This may have
+  // some performance impact. Set it to false then clients can fetch results immediately
+  // when any of them are ready. Note that in this case, query retry will be skipped if
+  // the client has fetched some results.
+  SPOOL_ALL_RESULTS_FOR_RETRIES = 109
+
   // A value (0.0, 1.0) that is the target false positive probability for runtime bloom
   // filters. If not set, falls back to max_filter_error_rate.
-  RUNTIME_FILTER_ERROR_RATE = 109
+  RUNTIME_FILTER_ERROR_RATE = 110
 }
 
 // The summary of a DML statement.
