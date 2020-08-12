@@ -139,6 +139,7 @@ DECLARE_bool(disk_spill_encryption);
 DECLARE_bool(enable_ldap_auth);
 DECLARE_bool(gen_experimental_profile);
 DECLARE_bool(use_local_catalog);
+DECLARE_string(admission_service_host);
 
 DEFINE_int32(beeswax_port, 21000, "port on which Beeswax client requests are served."
     "If 0 or less, the Beeswax server is not started. This interface is deprecated and "
@@ -2692,7 +2693,11 @@ Status ImpalaServer::Start(
   // We must register the HTTP handlers after registering the ImpalaServer with the
   // ExecEnv. Otherwise the HTTP handlers will try to resolve the ImpalaServer through the
   // ExecEnv singleton and will receive a nullptr.
-  http_handler_.reset(new ImpalaHttpHandler(this));
+  // If the admission control service is in use, pass nullptr for the AdmissionController
+  // so that the '/admission' page won't be exposed.
+  http_handler_.reset(ImpalaHttpHandler::CreateImpaladHandler(this,
+      exec_env_->admission_controller(),
+      exec_env_->cluster_membership_mgr()));
   http_handler_->RegisterHandlers(exec_env_->webserver());
   if (exec_env_->metrics_webserver() != nullptr) {
     http_handler_->RegisterHandlers(
