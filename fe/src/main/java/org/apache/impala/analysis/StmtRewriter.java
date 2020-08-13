@@ -493,7 +493,9 @@ public class StmtRewriter {
       if (!inPred.isNotIn()) return null;
 
       // CASE 2, NOT IN and RHS returns a single row:
-      if (rhsQuery.returnsAtMostOneRow()) {
+      // IMPALA-7782: this rewrite is only valid if the subquery is always non-empty
+      // because C NOT IN (<empty set>) is true, but C != (<empty set>) is false.
+      if (rhsQuery.returnsExactlyOneRow()) {
         return new BinaryPredicate(BinaryPredicate.Operator.NE, lhs, rhs);
       }
 
