@@ -547,6 +547,10 @@ enum TImpalaQueryOptions {
   // The max reservation that sorter will use for intermediate sort runs.
   // 0 or -1 means this has no effect.
   SORT_RUN_BYTES_LIMIT = 106
+
+  // A value (0.0, 1.0) that is the target false positive probability for runtime bloom
+  // filters. If not set, falls back to max_filter_error_rate.
+  RUNTIME_FILTER_ERROR_RATE = 107
 }
 
 // The summary of a DML statement.
