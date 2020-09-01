@@ -384,7 +384,7 @@ class ImpalaClient(object):
         ssl_ctx.check_hostname = False  # Mandated by the SSL lib for CERT_NONE mode.
         ssl_ctx.verify_mode = ssl.CERT_NONE
       transport = ImpalaHttpClient(
-          "https://{0}/{1}".format(host_and_port, self.http_path), ssl_context=ssl_ctx)
+          "https://{0}/{1}".format(host_and_port, self.http_path), cafile=self.ca_cert)
     else:
       transport = ImpalaHttpClient("http://{0}/{1}".format(host_and_port, self.http_path))
 
