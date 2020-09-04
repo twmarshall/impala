@@ -100,6 +100,12 @@ DEFINE_string(ldap_user_filter, "", "Comma separated list of usernames. If speci
 DEFINE_string(ldap_group_filter, "", "Comma separated list of groups. If specified, "
     "users must belong to one of these groups for authentication to succeed.");
 
+DEFINE_string(ldap_group_search_pattern, "",
+    "The LDAP search pattern used to find groups that a user is a member of when "
+    "enforcing --ldap_group_filter. May optionally include a '%s' which will be replaced "
+    "with the username that groups are being searched for. If not specified, defaults to "
+    "'(&(objectClass=--ldap_group_class_key)(--ldap_group_membership_key=%s))'");
+
 DEFINE_string(internal_principals_whitelist, "hdfs", "(Advanced) Comma-separated list of "
     " additional usernames authorized to access Impala's internal APIs. Defaults to "
     "'hdfs' which is the system user that in certain deployments must access "

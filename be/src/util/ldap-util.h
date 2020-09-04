@@ -65,6 +65,8 @@ class ImpalaLdap {
   /// The base DNs to use when preforming group searches.
   std::vector<std::string> group_filter_dns_;
 
+  std::string group_search_pattern_;
+
   /// The output of --ldap_bind_password_cmd, if specified.
   std::string bind_password_;
 
