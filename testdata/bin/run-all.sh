@@ -59,6 +59,10 @@ $IMPALA_HOME/testdata/bin/run-mini-dfs.sh ${HDFS_FORMAT_CLUSTER-} 2>&1 | \
 # - One Yarn ResourceManager
 # - Multiple Yarn NodeManagers, exactly one per HDFS DN
 if [[ ${DEFAULT_FS} == "hdfs://${INTERNAL_LISTEN_HOST}:20500" ]]; then
+  echo " --> Starting LDAP"
+  $IMPALA_HOME/testdata/bin/run-ldap-server.sh > \
+      ${IMPALA_CLUSTER_LOGS_DIR}/run-ldap-server.log 2>&1
+
   # HBase does not work with kerberos yet.
   if [[ "$IMPALA_KERBERIZE" != true ]]; then
     echo " --> Starting HBase"

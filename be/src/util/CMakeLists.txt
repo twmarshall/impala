@@ -123,6 +123,7 @@ add_library(UtilTests STATIC
   fixed-size-hash-table-test.cc
   hdfs-util-test.cc
   hdr-histogram-test.cc
+  ldap-util-test.cc
   logging-support-test.cc
   metrics-test.cc
   min-max-filter-test.cc
@@ -189,6 +190,7 @@ ADD_UNIFIED_BE_LSAN_TEST(hdr-histogram-test HdrHistogramTest.*)
 # internal-queue-test has a non-standard main(), so it needs a small amount of thought
 # to use a unified executable
 ADD_BE_LSAN_TEST(internal-queue-test)
+ADD_UNIFIED_BE_LSAN_TEST(ldap-util-test "LdapUtilTest.*")
 ADD_UNIFIED_BE_LSAN_TEST(logging-support-test "LoggingSupport.*")
 ADD_UNIFIED_BE_LSAN_TEST(metrics-test "MetricsTest.*")
 ADD_UNIFIED_BE_LSAN_TEST(min-max-filter-test "MinMaxFilterTest.*")

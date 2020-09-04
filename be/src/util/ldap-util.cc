@@ -70,6 +70,7 @@ TAG_FLAG(ldap_bind_password_cmd, sensitive);
 DECLARE_string(ldap_ca_certificate);
 DECLARE_string(ldap_user_filter);
 DECLARE_string(ldap_group_filter);
+DECLARE_string(ldap_group_search_pattern);
 DECLARE_string(principal);
 DECLARE_bool(skip_external_kerberos_auth);
 
@@ -164,6 +165,16 @@ Status ImpalaLdap::Init(const std::string& user_filter, const std::string& group
         group_filter_dns_.push_back(group_dn_pattern);
       }
     }
+
+    if (FLAGS_ldap_group_search_pattern.empty()) {
+      // Construct a filter that will search for LDAP entries that represent groups
+      // (determined by having the group class key) and that contain the user trying to
+      // authenticate (determined by having a membership entry matching the user).
+      group_search_pattern_ = Substitute("(&(objectClass=$0)($1=%s))", FLAGS_ldap_group_class_key,
+          FLAGS_ldap_group_membership_key);
+    } else {
+      group_search_pattern_ = FLAGS_ldap_group_search_pattern;
+    }
   }
 
   if (!FLAGS_ldap_bind_password_cmd.empty()) {
@@ -220,6 +231,7 @@ bool ImpalaLdap::Bind(
     }
     VLOG(2) << "Started TLS connection with LDAP server: " << FLAGS_ldap_uri;
   }
+  LOG(INFO) << "asdf uri=" << FLAGS_ldap_uri;
 
   // Map the password into a credentials structure
   struct berval cred;
@@ -275,11 +287,12 @@ bool ImpalaLdap::LdapCheckFilters(std::string username) {
 }
 
 bool ImpalaLdap::CheckGroupMembership(LDAP* ld, const string& user_dn) {
-  // Construct a filter that will search for LDAP entries that represent groups
-  // (determined by having the group class key) and that contain the user trying to
-  // authenticate (determined by having a membership entry matching the user).
-  string filter = Substitute("(&(objectClass=$0)($1=$2))", FLAGS_ldap_group_class_key,
-      FLAGS_ldap_group_membership_key, user_dn);
+  string filter;
+  if (group_search_pattern_.find("%s") != std::string::npos) {
+    filter = StringReplace(group_search_pattern_, "%s", user_dn, /* replace_all */ false);
+  } else {
+    filter = group_search_pattern_;
+  }
   VLOG(2) << "Searching for groups with filter: " << filter;
 
   for (const string& group_dn : group_filter_dns_) {
