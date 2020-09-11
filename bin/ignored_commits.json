@@ -1,1 +1,30 @@
-[]
+[
+  {
+    "source": "master",
+    "target": "cdpd-master-staging",
+    "commits": [
+        { "hash": "5ce57cafb20f4627054c6c1d0d2a79e9ae97fd78",
+          "comment": "IMPALA-8369: cherrypicked separately"},
+        { "hash": "72c9370856d7436885adbee3e8da7e7d9336df15",
+          "comment": "IMPALA-8717: cherrypicked separately"},
+        { "hash": "1dcd2eb959b5bac642e9c0ccf512f2d68a51dd12",
+          "comment": "Added debugging utilities to docker containers, skip downstream"},
+        { "hash": "146af97944bb2797d501ecdbc6417a3bc758891f",
+          "comment": "Added debugging utilities to docker containers, skip downstream"},
+        { "hash": "4c04e6773855d9e2a0093c92f37bb34d59143723",
+          "comment": "IMPALA-8891: cherrypicked separately"},
+        { "hash": "da5b498c18ba1a22b122682da73481af633a3398",
+          "comment": "IMPALA-9373: cherrypicked separately"},
+        { "hash": "e11d02adcbaed38d1d0d09549383408ce33fa234",
+          "comment": "IMPALA-9666: empty commit"},
+        { "hash": "fd810e6f0926e0651c0ae30dd7ae654962701b95",
+          "comment": "IMPALA-9862: went downstream first, not needed"},
+        { "hash": "75146c9138051758176d3d4482f45a9d1056127b",
+          "comment": "IMPALA-10012: modifies code that was reverted downstream" },
+        { "hash": "b7965d8240f3a5cd6972351b7fe1116e4a0835c1",
+          "comment": "Revert of IMPALA-10012 which was skipped" },
+        { "hash": "fe6e6257475b521b3ceeae4f6a898aae6ce3eb94",
+          "comment": "Reapply IMPALA-10012: modified code that was reverted downstream" }
+    ]
+  }
+]
