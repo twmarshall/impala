@@ -134,6 +134,8 @@ class CustomClusterTestSuite(ImpalaTestSuite):
     return decorate
 
   def setup_method(self, method):
+    if "skip" in method.func_dict and self.exploration_strategy() != 'exhaustive':
+      pytest.skip('runs only in exhaustive')
     cluster_args = list()
     for arg in [IMPALAD_ARGS, STATESTORED_ARGS, CATALOGD_ARGS]:
       if arg in method.func_dict:

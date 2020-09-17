@@ -36,6 +36,7 @@ from tests.common.environ import build_flavor_timeout, ImpalaTestClusterProperti
 from tests.common.impala_test_suite import ImpalaTestSuite
 from tests.common.resource_pool_config import ResourcePoolConfig
 from tests.common.skip import (
+    SkipIf,
     SkipIfS3,
     SkipIfABFS,
     SkipIfADLS,
@@ -407,6 +408,7 @@ class TestAdmissionController(TestAdmissionControllerBase, HS2TestSuite):
       close_req.sessionHandle = open_session_resp.sessionHandle
       TestAdmissionController.check_response(self.hs2_client.CloseSession(close_req))
 
+  @SkipIf.not_exhaustive
   @pytest.mark.execute_serially
   @CustomClusterTestSuite.with_args(
       impalad_args=impalad_admission_ctrl_flags(max_requests=1, max_queued=1,
@@ -415,8 +417,6 @@ class TestAdmissionController(TestAdmissionControllerBase, HS2TestSuite):
   def test_trivial_coord_query_limits(self):
     """Tests that trivial coordinator only queries have negligible resource requirements.
     """
-    if self.exploration_strategy() != 'exhaustive':
-      pytest.skip('runs only in exhaustive')
     # Queries with only constant exprs or limit 0 should be admitted.
     self.execute_query_expect_success(self.client, "select 1")
     self.execute_query_expect_success(self.client,
@@ -984,6 +984,7 @@ class TestAdmissionController(TestAdmissionControllerBase, HS2TestSuite):
       verifier = MetricVerifier(impalad.service)
       verifier.wait_for_backend_admission_control_state()
 
+  @SkipIf.not_exhaustive
   @pytest.mark.execute_serially
   @CustomClusterTestSuite.with_args(
     impalad_args=impalad_admission_ctrl_flags(max_requests=1, max_queued=10,
@@ -992,8 +993,6 @@ class TestAdmissionController(TestAdmissionControllerBase, HS2TestSuite):
   def test_query_locations_correctness(self, vector):
     """Regression test for IMPALA-7516: Test to make sure query locations and in-flight
     queries are correct for different admission results that can affect it."""
-    if self.exploration_strategy() != 'exhaustive':
-      pytest.skip('runs only in exhaustive')
     # Choose a query that runs on all 3 backends.
     query = "select * from functional.alltypesagg A, (select sleep(10000)) B limit 1"
     # Case 1: When a query runs succesfully.
@@ -1241,14 +1240,13 @@ class TestAdmissionController(TestAdmissionControllerBase, HS2TestSuite):
     assert len(reasons) == 1
     assert "Coordinator not registered with the statestore." in reasons[0]
 
+  @SkipIf.not_exhaustive
   @pytest.mark.execute_serially
   @CustomClusterTestSuite.with_args(num_exclusive_coordinators=1)
   def test_release_backends(self, vector):
     """Test that executor backends are shutdown when they complete, that completed
     executor backends release their admitted memory, and that
     NumCompletedBackends is updated each time an executor backend completes."""
-    if self.exploration_strategy() != 'exhaustive':
-      pytest.skip('runs only in exhaustive')
 
     # Craft a query where part of the executor backends completes, while the rest remain
     # running indefinitely. The query forces the 'lineitem' table to be treated as the
@@ -1789,6 +1787,7 @@ class TestAdmissionControllerStress(TestAdmissionControllerBase):
       if thread.error is not None:
         raise thread.error
 
+  @SkipIf.not_exhaustive
   @pytest.mark.execute_serially
   @SkipIfOS.redhat6
   @CustomClusterTestSuite.with_args(
@@ -1796,8 +1795,6 @@ class TestAdmissionControllerStress(TestAdmissionControllerBase):
         max_queued=MAX_NUM_QUEUED_QUERIES, pool_max_mem=-1, queue_wait_timeout_ms=600000),
       statestored_args=_STATESTORED_ARGS)
   def test_admission_controller_with_flags(self, vector):
-    if self.exploration_strategy() != 'exhaustive':
-      pytest.skip('runs only in exhaustive')
     self.pool_name = 'default-pool'
     # The pool has no mem resources set, so submitting queries with huge mem_limits
     # should be fine. This exercises the code that does the per-pool memory

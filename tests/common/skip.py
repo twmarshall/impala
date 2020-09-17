@@ -124,6 +124,11 @@ class SkipIf:
   is_buggy_el6_kernel = pytest.mark.skipif(
       IS_BUGGY_EL6_KERNEL, reason="Kernel is affected by KUDU-1508")
 
+  @staticmethod
+  def not_exhaustive(func):
+    func.func_dict["skip"] = "not_exaustive"
+    return func
+
 
 class SkipIfIsilon:
   caching = pytest.mark.skipif(IS_ISILON, reason="SET CACHED not implemented for Isilon")

@@ -35,7 +35,7 @@ from TCLIService import TCLIService
 from beeswaxd.BeeswaxService import QueryState
 from tests.beeswax.impala_beeswax import ImpalaBeeswaxException
 from tests.common.custom_cluster_test_suite import CustomClusterTestSuite
-from tests.common.skip import SkipIfNotHdfsMinicluster
+from tests.common.skip import SkipIf, SkipIfNotHdfsMinicluster
 from tests.hs2.hs2_test_suite import HS2TestSuite, needs_session
 
 LOG = logging.getLogger(__name__)
@@ -97,12 +97,11 @@ class TestRestart(CustomClusterTestSuite):
       # Debug action to delay statestore updates to give the restarted impalad time to
       # register itself before a membership topic update is generated.
       statestored_args="--debug_actions=DO_SUBSCRIBER_UPDATE:JITTER@10000")
+  @SkipIf.not_exhaustive
   def test_statestore_update_after_impalad_restart(self):
       """Test that checks that coordinators are informed that an impalad went down even if
       the statestore doesn't send a membership update until after a new impalad has been
       restarted at the same location."""
-      if self.exploration_strategy() != 'exhaustive':
-        pytest.skip()
 
       assert len(self.cluster.impalads) == 3
       client = self.cluster.impalads[0].service.create_beeswax_client()
@@ -341,12 +340,10 @@ class TestGracefulShutdown(CustomClusterTestSuite, HS2TestSuite):
           --hostname={hostname}".format(grace_period=EXEC_SHUTDOWN_GRACE_PERIOD_S,
             deadline=EXEC_SHUTDOWN_DEADLINE_S, status_report_delay_ms=5000,
             hostname=socket.gethostname()))
+  @SkipIf.not_exhaustive
   def test_shutdown_executor_with_delay(self):
     """Regression test for IMPALA-7931 that adds delays to status reporting and
     to fetching of results to trigger races that previously resulted in query failures."""
-    print self.exploration_strategy
-    if self.exploration_strategy() != 'exhaustive':
-      pytest.skip()
     self.do_test_shutdown_executor(fetch_delay_s=5)
 
   def do_test_shutdown_executor(self, fetch_delay_s):
