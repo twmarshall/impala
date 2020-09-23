@@ -24,7 +24,9 @@
         { "hash": "b7965d8240f3a5cd6972351b7fe1116e4a0835c1",
           "comment": "Revert of IMPALA-10012 which was skipped" },
         { "hash": "fe6e6257475b521b3ceeae4f6a898aae6ce3eb94",
-          "comment": "Reapply IMPALA-10012: modified code that was reverted downstream" }
+          "comment": "Reapply IMPALA-10012: modified code that was reverted downstream" },
+        { "hash": "3ef77566286c0077b89c0b8ce529ea9985018dd6",
+          "comment": "IMPALA-10051: modified code that was reverted downstream, see CDPD-11874, CDPD-12748" }
     ]
   }
 ]
