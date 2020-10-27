@@ -168,6 +168,13 @@ export CCACHE_LOGFILE=${KUDU_HOME}/ccache-log-kudu-for-impala.txt
 ccache --version || true # Dump version, never fail
 ccache -s || true   # Dump statistics, never fail.
 
+# Since this is using a tarball produced from the Kudu build, we need to be
+# careful to double check that it doesn't contain any stale directories
+# that aren't from the original source. This removes a couple directories
+# that could interfere with the build:
+rm -rf thirdparty/build
+rm -rf thirdparty/src
+
 EXTRA_MAKEFLAGS=${KUDU_MAKE_FLAGS} \
   PARALLEL=${BUILD_THREADS} \
   ./thirdparty/build-if-necessary.sh
@@ -177,6 +184,10 @@ PATH="`pwd`/thirdparty/installed/common/bin:$PATH"
 
 # Now Kudu can be built.
 KUDU_NAME=kudu-${IMPALA_KUDU_VERSION}
+# Remove any preexisting directory
+rm -rf ${KUDU_NAME}
+rm -rf usr
+rm -rf build
 for type in release debug; do
   INSTALL_DIR=`pwd`/${KUDU_NAME}/${type}
   mkdir -p build/${type}
