@@ -40,21 +40,21 @@ IS_STANDALONE_IMPALA_BUILD=${IS_STANDALONE_IMPALA_BUILD-true}
 # following versions will be updated with SNAPSHOT versions. However, Impala does not
 # use these SNAPSHOT versions. Instead, Impala gets version from a CDP GBN.
 if ! ${IS_STANDALONE_IMPALA_BUILD}; then
-    export CDP_HADOOP_VERSION=3.1.1.7.2.3.0-SNAPSHOT
-    export CDP_HBASE_VERSION=2.2.6.7.2.3.0-SNAPSHOT
-    export CDP_HIVE_VERSION=3.1.3000.7.2.3.0-SNAPSHOT
-    export CDP_KNOX_VERSION=1.3.0.7.2.3.0-SNAPSHOT
-    export CDP_KUDU_VERSION=1.13.0.7.2.3.0-SNAPSHOT
-    export CDP_KUDU_JAVA_VERSION=1.13.0.7.2.3.0-SNAPSHOT
-    export CDP_RANGER_VERSION=2.1.0.7.2.3.0-SNAPSHOT
-    export CDP_TEZ_VERSION=0.9.1.7.2.3.0-SNAPSHOT
-    export CDP_OZONE_VERSION=1.0.0.7.2.3.0-SNAPSHOT
-    export CDP_ATLAS_VERSION=2.1.0.7.2.3.0-SNAPSHOT
-    export CDP_AVRO_JAVA_VERSION=1.8.2.7.2.3.0-SNAPSHOT
-    export CDP_PARQUET_VERSION=1.10.99.7.2.3.0-SNAPSHOT
+    export CDP_HADOOP_VERSION=3.1.1.7.2.7.0-SNAPSHOT
+    export CDP_HBASE_VERSION=2.2.6.7.2.7.0-SNAPSHOT
+    export CDP_HIVE_VERSION=3.1.3000.7.2.7.0-SNAPSHOT
+    export CDP_KNOX_VERSION=1.3.0.7.2.7.0-SNAPSHOT
+    export CDP_KUDU_VERSION=1.13.0.7.2.7.0-SNAPSHOT
+    export CDP_KUDU_JAVA_VERSION=1.13.0.7.2.7.0-SNAPSHOT
+    export CDP_RANGER_VERSION=2.1.0.7.2.7.0-SNAPSHOT
+    export CDP_TEZ_VERSION=0.9.1.7.2.7.0-SNAPSHOT
+    export CDP_OZONE_VERSION=1.0.0.7.2.7.0-SNAPSHOT
+    export CDP_ATLAS_VERSION=2.1.0.7.2.7.0-SNAPSHOT
+    export CDP_AVRO_JAVA_VERSION=1.8.2.7.2.7.0-SNAPSHOT
+    export CDP_PARQUET_VERSION=1.10.99.7.2.7.0-SNAPSHOT
     # TODO: remove these IMPALA_KUDU_* once there is proper support of CDP Kudu
-    export IMPALA_KUDU_VERSION=1.13.0.7.2.3.0-SNAPSHOT
-    export IMPALA_KUDU_JAVA_VERSION=1.13.0.7.2.3.0-SNAPSHOT
+    export IMPALA_KUDU_VERSION=1.13.0.7.2.7.0-SNAPSHOT
+    export IMPALA_KUDU_JAVA_VERSION=1.13.0.7.2.7.0-SNAPSHOT
     return 0
 fi;
 
@@ -80,7 +80,7 @@ export CDP_GBN=${GLOBAL_BUILD_NUMBER:-${CDP_GBN:-}}
 
 # The CDP_VERSION is used to query builddb. This will be different on different branches.
 # It is set by the set_snapshot_versions Jenkins job.
-export CDP_VERSION=7.2.3.0
+export CDP_VERSION=7.2.7.0
 # The file name to stash the GBN incorporates $CDP_VERSION to make distinctions between
 # releases.
 CDP_GBN_CONFIG="${IMPALA_HOME}/toolchain/cdp_components/cdp-gbn-${CDP_VERSION}.sh"
