@@ -77,6 +77,8 @@ public:
     // authentication is successful.
     std::function<bool(const std::string&)> cookie_auth_fn =
         [&](const std::string&) { return false; };
+
+    std::function<void(const char*, int)> header_fn = [&](const char*, int) {};
   };
 
   THttpServer(boost::shared_ptr<TTransport> transport, bool has_ldap, bool has_kerberos,

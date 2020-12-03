@@ -114,6 +114,8 @@ void THttpServer::parseHeader(char* header) {
     if (THRIFT_strcasestr(value, "100-continue")){
       continue_ = true;
     }
+  } else {
+    callbacks_.header_fn(header, sz);
   }
 }
 

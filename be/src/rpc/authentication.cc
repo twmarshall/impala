@@ -1045,6 +1045,15 @@ Status NoAuthProvider::WrapClientTransport(const string& hostname,
   return Status::OK();
 }
 
+void C1CHeadersFn(
+    ThriftServer::ConnectionContext* connection_ptr, const char* header, int sz) {
+  if (strncasecmp(header, "X-C1C-Actor-Username", sz) == 0) {
+    connection_ptr->username = string(header + sz + 2);
+    LOG(INFO) << "Got X-C1C-Actor-Username, setting username as: "
+              << connection_ptr->username;
+  }
+}
+
 void NoAuthProvider::SetupConnectionContext(
     const boost::shared_ptr<ThriftServer::ConnectionContext>& connection_ptr,
     ThriftServer::TransportType underlying_transport_type, TTransport* input_transport,
@@ -1068,6 +1077,8 @@ void NoAuthProvider::SetupConnectionContext(
       callbacks.path_fn = std::bind(
           HttpPathFn, connection_ptr.get(), std::placeholders::_1, std::placeholders::_2);
       callbacks.return_headers_fn = std::bind(ReturnHeaders, connection_ptr.get());
+      callbacks.header_fn = std::bind(C1CHeadersFn, connection_ptr.get(),
+          std::placeholders::_1, std::placeholders::_2);
       http_input_transport->setCallbacks(callbacks);
       http_output_transport->setCallbacks(callbacks);
       socket = down_cast<TSocket*>(http_input_transport->getUnderlyingTransport().get());
